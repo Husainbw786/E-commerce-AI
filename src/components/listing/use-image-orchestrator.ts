@@ -1,11 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchListing, generateImage } from "@/lib/client/api";
-import { slotsFor, type ProviderName, type Slot } from "@/lib/listing/schema";
+import { deleteImage as apiDeleteImage, fetchListing, generateImage } from "@/lib/client/api";
+import type { ProviderName, Slot } from "@/lib/listing/schema";
 import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
+import { useToast } from "../toast";
 
 export const keyOf = (slot: Slot, provider: ProviderName) => `${slot}:${provider}`;
+
+/** A request this tab is waiting on. Shown as a placeholder card until the image arrives. */
+export type Inflight = { id: string; slot: Slot; provider: ProviderName; adjust?: string; edit: boolean };
 
 export function latestImage(images: ImageDTO[], slot: Slot, provider: ProviderName): ImageDTO | undefined {
   let found: ImageDTO | undefined;
@@ -23,13 +27,13 @@ export function pickedImage(images: ImageDTO[], slot: Slot): ImageDTO | undefine
 
 /**
  * Starts one request per slot (chosen model) as soon as the listing details are ready,
- * keeps track of what is in flight, and polls if the server has pending images
+ * runs regenerations / edits on demand, and polls if the server has pending images
  * this tab didn't start (e.g. after a page refresh).
  */
 export function useImageOrchestrator(initial: ListingDTO) {
+  const toast = useToast();
   const [listing, setListing] = useState(initial);
-  const [inflight, setInflight] = useState<Set<string>>(() => new Set());
-  const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
+  const [inflight, setInflight] = useState<Inflight[]>([]);
   const kicked = useRef(new Set<string>());
 
   const mergeImage = useCallback((img: ImageDTO) => {
@@ -42,36 +46,42 @@ export function useImageOrchestrator(initial: ListingDTO) {
   }, []);
 
   const run = useCallback(
-    (slot: Slot, provider: ProviderName, adjust?: string) => {
-      const key = keyOf(slot, provider);
-      kicked.current.add(key);
-      setInflight((s) => new Set(s).add(key));
-      setRequestErrors(({ [key]: _cleared, ...rest }) => rest);
-      generateImage(listing.id, slot, provider, adjust)
+    (slot: Slot, provider: ProviderName, opts: { adjust?: string; baseImageId?: string } = {}) => {
+      kicked.current.add(keyOf(slot, provider));
+      const req: Inflight = { id: crypto.randomUUID(), slot, provider, adjust: opts.adjust?.trim() || undefined, edit: !!opts.baseImageId };
+      setInflight((list) => [...list, req]);
+      generateImage(listing.id, slot, provider, opts)
         .then(mergeImage)
-        .catch((err: Error) => setRequestErrors((e) => ({ ...e, [key]: err.message })))
-        .finally(() =>
-          setInflight((s) => {
-            const next = new Set(s);
-            next.delete(key);
-            return next;
-          }),
-        );
+        .catch((err: Error) => toast(err.message))
+        .finally(() => setInflight((list) => list.filter((r) => r.id !== req.id)));
     },
-    [listing.id, mergeImage],
+    [listing.id, mergeImage, toast],
+  );
+
+  const removeImage = useCallback(
+    async (img: ImageDTO) => {
+      setListing((l) => ({ ...l, images: l.images.filter((i) => i.id !== img.id) }));
+      try {
+        const fresh = await apiDeleteImage(listing.id, img.id);
+        setListing((l) => ({ ...l, images: fresh.images }));
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Couldn't delete image");
+      }
+    },
+    [listing.id, toast],
   );
 
   // Auto-start generation with the model the seller chose — once per slot.
   useEffect(() => {
     if (listing.status !== "ready") return;
-    for (const slot of slotsFor(listing.imageCount)) {
+    for (const slot of listing.slots) {
       const key = keyOf(slot, listing.provider);
       if (!kicked.current.has(key) && !latestImage(listing.images, slot, listing.provider)) run(slot, listing.provider);
     }
   }, [listing, run]);
 
   // Poll for server-side pending images this tab isn't waiting on.
-  const orphanPending = listing.images.some((i) => i.status === "pending" && !inflight.has(keyOf(i.slot, i.provider)));
+  const orphanPending = inflight.length === 0 && listing.images.some((i) => i.status === "pending");
   const analysing = listing.status === "analysing";
   useEffect(() => {
     if (!orphanPending && !analysing) return;
@@ -83,5 +93,5 @@ export function useImageOrchestrator(initial: ListingDTO) {
     return () => clearInterval(t);
   }, [orphanPending, analysing, listing.id]);
 
-  return { listing, setListing, inflight, requestErrors, run };
+  return { listing, setListing, inflight, run, removeImage };
 }

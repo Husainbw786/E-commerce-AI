@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { imageFileName, safeSku } from "@/lib/listing/export";
-import { SLOT_INFO, slotsFor } from "@/lib/listing/schema";
+import { SLOT_INFO } from "@/lib/listing/schema";
 import type { ListingDTO } from "@/lib/listing/types";
 import { Button, Icon, inputClass } from "../ui";
 import { pickedImage } from "./use-image-orchestrator";
@@ -19,7 +19,7 @@ export function ExportDialog({ listing, onClose }: { listing: ListingDTO; onClos
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const files = slotsFor(listing.imageCount).map((slot, i) => ({
+  const files = listing.slots.map((slot, i) => ({
     slot,
     file: imageFileName(sku, i, slot),
     ready: !!pickedImage(listing.images, slot),

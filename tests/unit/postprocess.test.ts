@@ -42,7 +42,8 @@ describe("postprocess", () => {
   });
 
   it("fills a shot plan entry for every slot", () => {
-    expect(out.shotPlan.map((s) => s.slot)).toEqual(["primary", "detail", "size"]);
+    expect(out.shotPlan.map((s) => s.slot)).toEqual(["primary", "detail", "size", "lifestyle"]);
+    expect(out.shotPlan[3].prompt).toContain("Cutting");
     expect(out.shotPlan[1].prompt).toContain("Kitchen knife");
   });
 

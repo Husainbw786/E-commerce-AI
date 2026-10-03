@@ -1,4 +1,4 @@
-import type { ListingDetails, ProviderName, Slot } from "./schema";
+import type { ListingDetails, ProviderName, SellerAnswer, Slot } from "./schema";
 
 /** Shapes the API returns to the browser. */
 export type ImageDTO = {
@@ -11,6 +11,7 @@ export type ImageDTO = {
   error: string | null;
   selected: boolean;
   adjust: string | null;
+  baseImageId: string | null;
   createdAt: string;
 };
 
@@ -19,6 +20,12 @@ export type ListingDTO = {
   sourceUrl: string;
   sourceUrls: string[];
   imageCount: number;
+  /** Image slots for this listing, in order (standard slots + optional lifestyle). */
+  slots: Slot[];
+  lifestyle: boolean;
+  lifestyleScene: string | null;
+  sellerNotes: string | null;
+  sellerAnswers: SellerAnswer[];
   status: "analysing" | "ready" | "failed";
   details: ListingDetails | null;
   error: string | null;

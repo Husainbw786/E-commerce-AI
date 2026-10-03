@@ -3,21 +3,23 @@
 import imageCompression from "browser-image-compression";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { createListing, uploadPhoto } from "@/lib/client/api";
-import { MAX_SOURCE_PHOTOS, SLOT_INFO, slotsFor, type ProviderName } from "@/lib/listing/schema";
-import { Button, Icon, SectionHeading, Segmented, StepsBar } from "./ui";
+import { createListing, fetchQuestions, uploadPhoto } from "@/lib/client/api";
+import { MAX_SOURCE_PHOTOS, SLOT_INFO, slotsFor, type ProviderName, type SellerQuestions } from "@/lib/listing/schema";
+import { QuestionsPanel, type QuestionsState } from "./questions-panel";
+import { Button, Icon, SectionHeading, Segmented, StepsBar, inputClass } from "./ui";
 
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 const ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif";
 
 type Photo = { id: string; file: File; preview: string };
 
-type Stage = "idle" | "compressing" | "uploading" | "analysing";
+type Stage = "idle" | "compressing" | "uploading" | "asking" | "analysing";
 const STAGE_TEXT: Record<Stage, string> = {
   idle: "",
   compressing: "Preparing photos…",
   uploading: "Uploading photos…",
-  analysing: "Reading your product and writing the listing… (about 20–40 s)",
+  asking: "Looking at your product… (about 10–20 s)",
+  analysing: "Writing your listing… (about 20–40 s)",
 };
 
 const PROVIDER_INFO: Record<ProviderName, { label: string; model: string }> = {
@@ -34,6 +36,11 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState("");
   const [drag, setDrag] = useState(false);
+  const [askFirst, setAskFirst] = useState(true);
+  const [form, setForm] = useState<QuestionsState>({ answers: {}, lifestyle: false, lifestyleScene: "", notes: "" });
+  const [questions, setQuestions] = useState<SellerQuestions | null>(null);
+  // Uploaded URLs for the current photo set, so "Back" and retries don't re-upload.
+  const [uploaded, setUploaded] = useState<string[] | null>(null);
   const photosRef = useRef(photos);
   useEffect(() => {
     photosRef.current = photos;
@@ -79,7 +86,10 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
       }
       accepted.push({ id: crypto.randomUUID(), file: f, preview: URL.createObjectURL(f) });
     }
-    if (accepted.length) setPhotos((p) => [...p, ...accepted]);
+    if (accepted.length) {
+      setPhotos((p) => [...p, ...accepted]);
+      setUploaded(null);
+    }
   }
 
   function remove(id: string) {
@@ -88,26 +98,67 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
       if (gone) URL.revokeObjectURL(gone.preview);
       return list.filter((p) => p.id !== id);
     });
+    setUploaded(null);
   }
 
   function makeMain(id: string) {
     setPhotos((list) => [...list.filter((p) => p.id === id), ...list.filter((p) => p.id !== id)]);
+    setUploaded(null);
   }
 
-  async function generate() {
+  async function uploadAll(): Promise<string[]> {
+    if (uploaded) return uploaded;
+    setStage("compressing");
+    const small = await Promise.all(
+      photos.map((p) =>
+        imageCompression(p.file, { maxWidthOrHeight: 2048, maxSizeMB: 3, fileType: "image/jpeg", initialQuality: 0.88, useWebWorker: true }),
+      ),
+    );
+    setStage("uploading");
+    const urls = await Promise.all(small.map((blob, i) => uploadPhoto(blob, photos[i].file.name.replace(/\.[^.]+$/, "") + ".jpg")));
+    setUploaded(urls);
+    return urls;
+  }
+
+  /** From the upload form: either ask questions first, or go straight to the listing. */
+  async function start() {
     if (!photos.length) return;
     setError("");
     try {
-      setStage("compressing");
-      const small = await Promise.all(
-        photos.map((p) =>
-          imageCompression(p.file, { maxWidthOrHeight: 2048, maxSizeMB: 3, fileType: "image/jpeg", initialQuality: 0.88, useWebWorker: true }),
-        ),
-      );
-      setStage("uploading");
-      const urls = await Promise.all(small.map((blob, i) => uploadPhoto(blob, photos[i].file.name.replace(/\.[^.]+$/, "") + ".jpg")));
+      const urls = await uploadAll();
+      if (askFirst) {
+        setStage("asking");
+        const q = await fetchQuestions(urls, form.notes);
+        setQuestions(q);
+        setForm((f) => ({ ...f, lifestyleScene: f.lifestyleScene || q.lifestyleScene }));
+        setStage("idle");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      await submit(urls);
+    } catch (err) {
+      setStage("idle");
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    }
+  }
+
+  async function submit(urls?: string[]) {
+    setError("");
+    try {
+      const sourceUrls = urls ?? (await uploadAll());
       setStage("analysing");
-      const listing = await createListing(urls, count, provider);
+      const answers = (questions?.questions ?? [])
+        .map((q) => ({ question: q.question, answer: (form.answers[q.id] ?? "").trim() }))
+        .filter((a) => a.answer);
+      const listing = await createListing({
+        sourceUrls,
+        imageCount: count,
+        provider,
+        notes: form.notes.trim() || undefined,
+        answers,
+        lifestyle: form.lifestyle,
+        lifestyleScene: form.lifestyle ? form.lifestyleScene.trim() || undefined : undefined,
+      });
       router.push(`/listing/${listing.id}`);
     } catch (err) {
       setStage("idle");
@@ -116,6 +167,37 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
   }
 
   const busy = stage !== "idle";
+
+  if (questions) {
+    return (
+      <>
+        <StepsBar active={0} />
+        <main className="mx-auto max-w-[1120px] px-6 pb-14 pt-8">
+          <div className="mb-6 flex gap-2">
+            {photos.map((p) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={p.id} src={p.preview} alt="" className="size-16 border border-line bg-white object-contain" />
+            ))}
+          </div>
+          <QuestionsPanel
+            questions={questions}
+            state={form}
+            onChange={setForm}
+            onBack={() => setQuestions(null)}
+            onSubmit={() => submit()}
+            busy={busy}
+            busyText={STAGE_TEXT[stage]}
+            count={count}
+          />
+          {error && (
+            <p role="alert" className="mt-3 text-[13px] font-semibold text-accent-strong">
+              {error}
+            </p>
+          )}
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
@@ -285,13 +367,63 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
             </div>
 
             <div>
+              <SectionHeading num="04" title="Extras" className="mb-4" />
+              <label htmlFor="notes" className="mb-1 block text-xs text-ink-2">
+                Anything the AI should know? (optional)
+              </label>
+              <textarea
+                id="notes"
+                rows={2}
+                maxLength={1000}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="e.g. stainless steel, sold in rose gold and silver, pack of 2"
+                className={`${inputClass} resize-y`}
+              />
+              <div className="mt-3 flex flex-col gap-2.5">
+                <Checkbox
+                  checked={askFirst}
+                  onChange={setAskFirst}
+                  label="Let the AI ask me a few questions first"
+                  hint="Variants, pack size, brand… and offers an in-use photo. Recommended."
+                />
+                {!askFirst && (
+                  <Checkbox
+                    checked={form.lifestyle}
+                    onChange={(v) => setForm({ ...form, lifestyle: v })}
+                    label="Add an in-use photo"
+                    hint="The product where it's used, e.g. a soap dish on a bathroom wall."
+                  />
+                )}
+                {!askFirst && form.lifestyle && (
+                  <input
+                    aria-label="Scene for the in-use photo"
+                    value={form.lifestyleScene}
+                    maxLength={300}
+                    onChange={(e) => setForm({ ...form, lifestyleScene: e.target.value })}
+                    placeholder="Scene (optional) — AI picks one if empty"
+                    className={inputClass}
+                  />
+                )}
+              </div>
+            </div>
+
+            <div>
               <Button
                 variant="primary"
-                onClick={generate}
+                onClick={start}
                 disabled={!photos.length || busy || providers.length === 0}
                 className="w-full justify-between px-[18px] py-4 text-base"
               >
-                <span>{!photos.length ? "Add a photo to generate" : busy ? STAGE_TEXT[stage] : `Generate ${count} image${count > 1 ? "s" : ""} + listing`}</span>
+                <span>
+                  {!photos.length
+                    ? "Add a photo to generate"
+                    : busy
+                      ? STAGE_TEXT[stage]
+                      : askFirst
+                        ? "Continue"
+                        : `Generate ${count + (form.lifestyle ? 1 : 0)} images + listing`}
+                </span>
                 <Icon name="arrow" size={20} />
               </Button>
               {error ? (
@@ -306,5 +438,17 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
         </div>
       </main>
     </>
+  );
+}
+
+function Checkbox({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2.5">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 size-[18px] flex-none accent-[#ec3013]" />
+      <span className="flex flex-col">
+        <span className="text-sm font-semibold">{label}</span>
+        {hint && <span className="text-xs text-muted">{hint}</span>}
+      </span>
+    </label>
   );
 }

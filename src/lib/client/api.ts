@@ -1,4 +1,4 @@
-import type { ListingPatch, ProviderName, Slot } from "@/lib/listing/schema";
+import type { ListingPatch, ProviderName, SellerAnswer, SellerQuestions, Slot } from "@/lib/listing/schema";
 import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -22,8 +22,26 @@ export async function uploadPhoto(file: Blob, name: string): Promise<string> {
   return url;
 }
 
-export async function createListing(sourceUrls: string[], imageCount: number, provider: ProviderName) {
-  return (await request<{ listing: ListingDTO }>("/api/listings", json({ sourceUrls, imageCount, provider }))).listing;
+export type CreateListingInput = {
+  sourceUrls: string[];
+  imageCount: number;
+  provider: ProviderName;
+  notes?: string;
+  answers?: SellerAnswer[];
+  lifestyle?: boolean;
+  lifestyleScene?: string;
+};
+
+export async function createListing(input: CreateListingInput) {
+  return (await request<{ listing: ListingDTO }>("/api/listings", json(input))).listing;
+}
+
+export async function fetchQuestions(sourceUrls: string[], notes?: string) {
+  return (await request<{ questions: SellerQuestions }>("/api/questions", json({ sourceUrls, notes: notes || undefined }))).questions;
+}
+
+export async function deleteImage(id: string, imageId: string) {
+  return (await request<{ listing: ListingDTO }>(`/api/listings/${id}/images/${imageId}`, { method: "DELETE" })).listing;
 }
 
 export async function fetchListing(id: string) {
@@ -38,8 +56,13 @@ export async function removeListing(id: string) {
   await request<void>(`/api/listings/${id}`, { method: "DELETE" });
 }
 
-export async function generateImage(id: string, slot: Slot, provider: ProviderName, adjust?: string) {
-  return (await request<{ image: ImageDTO }>(`/api/listings/${id}/images`, json({ slot, provider, adjust: adjust || undefined }))).image;
+export async function generateImage(id: string, slot: Slot, provider: ProviderName, opts: { adjust?: string; baseImageId?: string } = {}) {
+  return (
+    await request<{ image: ImageDTO }>(
+      `/api/listings/${id}/images`,
+      json({ slot, provider, adjust: opts.adjust?.trim() || undefined, baseImageId: opts.baseImageId }),
+    )
+  ).image;
 }
 
 export async function selectImage(id: string, imageId: string) {

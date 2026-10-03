@@ -1,6 +1,6 @@
 import "server-only";
 import sharp from "sharp";
-import type { ListingDetails, ProviderName } from "@/lib/listing/schema";
+import type { ListingDetails, ProviderName, SellerQuestions } from "@/lib/listing/schema";
 import type { ImageProvider } from "./providers/types";
 
 /** MOCK_AI=1 — lets the whole app run end-to-end without API keys or cost. */
@@ -47,10 +47,23 @@ export function mockListing(): ListingDetails {
       { slot: "primary", prompt: "Blue-handled serrated knife, front view, on white.", callouts: [] },
       { slot: "detail", prompt: "Close-up of the serrated edge and handle joint.", callouts: [] },
       { slot: "size", prompt: "Knife side-on with length lines.", callouts: ["~22 cm", "~11.5 cm blade"] },
+      { slot: "lifestyle", prompt: "Knife on a wooden chopping board next to sliced tomatoes.", callouts: [] },
     ],
     verifyBeforePublishing: ["Actual weight", "Exact dimensions", "HSN and GST", "Manufacturer and packer details", "Country of origin", "MRP"],
     assumptions: ["Mock data — set MOCK_AI=0 and add API keys for real results."],
     confidence: "medium",
+  };
+}
+
+export function mockQuestions(): SellerQuestions {
+  return {
+    productGuess: "Serrated kitchen knife",
+    questions: [
+      { id: "variants", question: "Do you sell other colours or sizes of this?", options: ["No, only this one", "Yes, other colours", "Yes, other sizes"] },
+      { id: "pack", question: "How many pieces does a customer get in one order?", options: ["1", "2", "3", "6"] },
+      { id: "brand", question: "Does it have a brand name?", options: ["No brand (Generic)", "Yes, my own brand"] },
+    ],
+    lifestyleScene: "On a wooden chopping board in a home kitchen, next to sliced tomatoes",
   };
 }
 

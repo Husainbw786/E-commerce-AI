@@ -5,22 +5,23 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { removeListing, selectImage, updateListing } from "@/lib/client/api";
 import { listingToText } from "@/lib/listing/export";
-import { slotsFor, type ListingPatch } from "@/lib/listing/schema";
+import { type ListingPatch } from "@/lib/listing/schema";
 import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
 import { useToast } from "../toast";
-import { Button, Icon, StepsBar, Tag } from "../ui";
+import { Button, Icon, StepsBar, Tag, inputClass } from "../ui";
 import { ExportDialog } from "./export-dialog";
 import { ImageSlot, PROVIDER_LABEL } from "./image-slot";
 import { ListingDetailsPanel } from "./listing-details";
-import { keyOf, latestImage, useImageOrchestrator } from "./use-image-orchestrator";
+import { latestImage, useImageOrchestrator } from "./use-image-orchestrator";
 
 export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
   const router = useRouter();
   const toast = useToast();
-  const { listing, setListing, inflight, requestErrors, run } = useImageOrchestrator(initial);
+  const { listing, setListing, inflight, run, removeImage } = useImageOrchestrator(initial);
   const [exportOpen, setExportOpen] = useState(false);
+  const [scene, setScene] = useState("");
 
-  const slots = slotsFor(listing.imageCount);
+  const slots = listing.slots;
   const details = listing.details;
 
   if (listing.status === "failed" || (!details && listing.status !== "analysing")) {
@@ -56,9 +57,19 @@ export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
   const expected = slots.map((slot) => ({ slot, p: listing.provider }));
   const finished = expected.filter(({ slot, p }) => {
     const img = latestImage(listing.images, slot, p);
-    return !inflight.has(keyOf(slot, p)) && img && img.status !== "pending";
+    return !inflight.some((r) => r.slot === slot) && img && img.status !== "pending";
   }).length;
-  const generating = inflight.size > 0 || listing.images.some((i) => i.status === "pending");
+  const generating = inflight.length > 0 || listing.images.some((i) => i.status === "pending");
+
+  async function addLifestyle() {
+    try {
+      const fresh = await updateListing(listing.id, { lifestyle: true, lifestyleScene: scene.trim() || details?.shotPlan.find((s) => s.slot === "lifestyle")?.prompt });
+      // The orchestrator sees the new slot and starts generating it.
+      setListing((l) => ({ ...l, slots: fresh.slots, lifestyle: fresh.lifestyle, lifestyleScene: fresh.lifestyleScene }));
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Couldn't add the image");
+    }
+  }
   const readySlots = slots.filter((slot) => listing.images.some((i) => i.slot === slot && i.status === "done")).length;
 
   async function save(patch: ListingPatch) {
@@ -175,11 +186,32 @@ export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
                 slot={slot}
                 index={i}
                 inflight={inflight}
-                requestErrors={requestErrors}
-                onRegenerate={run}
+                onGenerate={run}
                 onSelect={choose}
+                onDelete={removeImage}
               />
             ))}
+            {!listing.lifestyle && (
+              <section className="mt-6 border-2 border-dashed border-line p-5">
+                <div className="mb-1 text-base font-extrabold">Add an in-use photo?</div>
+                <p className="mb-3 mt-0 text-[13px] text-muted">
+                  Show the product where it&apos;s used — buyers understand it faster. Suggested: {details.shotPlan.find((s) => s.slot === "lifestyle")?.prompt}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    aria-label="Scene for the in-use photo"
+                    value={scene}
+                    onChange={(e) => setScene(e.target.value)}
+                    maxLength={300}
+                    placeholder="Optional: describe the scene (e.g. on a white-tiled bathroom wall)"
+                    className={`${inputClass} min-w-[240px] flex-1`}
+                  />
+                  <Button variant="primary" onClick={addLifestyle}>
+                    <Icon name="plus" /> Generate in-use photo
+                  </Button>
+                </div>
+              </section>
+            )}
           </div>
         </div>
 

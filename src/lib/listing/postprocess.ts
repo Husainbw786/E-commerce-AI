@@ -66,6 +66,7 @@ function defaultShot(slot: (typeof SLOTS)[number], d: ListingDetails): ShotPlanI
     primary: `Front hero shot of the ${what}, centred, filling about 85% of the frame.`,
     detail: `Three-quarter angle or close-up of the ${what} showing construction, texture and finish.`,
     size: `The ${what} shown once, side-on, with clean thin measurement lines for its main dimensions.`,
+    lifestyle: `The ${what} in use in a realistic everyday setting where it is normally used (${d.summary.intendedUse}).`,
   } as const;
   return { slot, prompt: prompts[slot], callouts: [] };
 }

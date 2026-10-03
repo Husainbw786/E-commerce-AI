@@ -10,6 +10,8 @@ const schema = z.object({
   OPENAI_API_KEY: optional,
   GEMINI_API_KEY: optional,
   OPENAI_TEXT_MODEL: z.string().default("gpt-6-astra"),
+  // Optional cheaper/faster model for the pre-listing questions. Falls back to OPENAI_TEXT_MODEL.
+  OPENAI_QUESTIONS_MODEL: optional,
   OPENAI_IMAGE_MODEL: z.string().default("gpt-image-2.5-flare"),
   OPENAI_IMAGE_QUALITY: z.enum(["low", "medium", "high", "xhigh", "max", "auto"]).default("high"),
   GEMINI_IMAGE_MODEL: z.string().default("gemini-3.1-flash-image"),

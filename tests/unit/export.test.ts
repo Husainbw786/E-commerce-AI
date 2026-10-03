@@ -22,5 +22,6 @@ describe("export helpers", () => {
   it("slotsFor clamps to 1..3", () => {
     expect(slotsFor(0)).toEqual(["primary"]);
     expect(slotsFor(9)).toEqual(["primary", "detail", "size"]);
+    expect(slotsFor(1, true)).toEqual(["primary", "lifestyle"]);
   });
 });

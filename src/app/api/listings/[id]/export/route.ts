@@ -2,7 +2,6 @@ import JSZip from "jszip";
 import type { NextRequest } from "next/server";
 import { HttpError, handler } from "@/lib/http";
 import { imageFileName, listingToText, safeSku } from "@/lib/listing/export";
-import { slotsFor } from "@/lib/listing/schema";
 import { getListing, patchListing } from "@/lib/listing/service";
 import { readStoredFile } from "@/lib/storage";
 
@@ -20,7 +19,7 @@ export const GET = handler(async (req: NextRequest, ctx: RouteContext<"/api/list
   if (skuParam !== null && skuParam !== listing.sku) listing = await patchListing(id, { sku: skuParam.slice(0, 60) });
   const sku = safeSku(listing.sku);
 
-  const slots = slotsFor(listing.imageCount);
+  const slots = listing.slots;
   const zip = new JSZip();
   let added = 0;
   for (const [i, slot] of slots.entries()) {

@@ -1,8 +1,8 @@
 import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import type { ListingDetails } from "@/lib/listing/schema";
+import type { ListingDetails, SellerAnswer } from "@/lib/listing/schema";
 
 export const listingStatus = pgEnum("listing_status", ["analysing", "ready", "failed"]);
-export const slotEnum = pgEnum("image_slot", ["primary", "detail", "size"]);
+export const slotEnum = pgEnum("image_slot", ["primary", "detail", "size", "lifestyle"]);
 export const providerEnum = pgEnum("image_provider", ["openai", "gemini"]);
 export const imageStatus = pgEnum("image_status", ["pending", "done", "failed"]);
 export const usageKind = pgEnum("usage_kind", ["text", "image"]);
@@ -17,6 +17,12 @@ export const listings = pgTable(
     imageCount: integer("image_count").notNull(),
     /** Image model the seller chose. Null on rows created before the picker existed. */
     imageProvider: providerEnum("image_provider"),
+    /** Extra in-use image requested. */
+    lifestyle: boolean("lifestyle").notNull().default(false),
+    lifestyleScene: text("lifestyle_scene"),
+    /** What the seller told us: free notes + answers to the AI's questions. */
+    sellerNotes: text("seller_notes"),
+    sellerAnswers: jsonb("seller_answers").$type<SellerAnswer[]>().notNull().default([]),
     status: listingStatus("status").notNull().default("analysing"),
     details: jsonb("details").$type<ListingDetails>(),
     error: text("error"),
@@ -41,6 +47,8 @@ export const listingImages = pgTable(
     model: text("model").notNull(),
     prompt: text("prompt").notNull(),
     adjust: text("adjust"),
+    /** Set when this image is an edit of another image. */
+    baseImageId: uuid("base_image_id"),
     url: text("url"),
     status: imageStatus("status").notNull().default("pending"),
     error: text("error"),
