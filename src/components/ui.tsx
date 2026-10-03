@@ -75,7 +75,7 @@ export function Segmented<T extends string | number>({
 export const inputClass =
   "w-full min-h-10 rounded-none border border-line bg-field px-2.5 py-2 text-sm text-ink focus:border-accent";
 
-export function Icon({ name, size = 15 }: { name: "upload" | "download" | "arrow" | "refresh" | "check" | "copy" | "close" | "plus" | "trash"; size?: number }) {
+export function Icon({ name, size = 15 }: { name: "upload" | "download" | "arrow" | "refresh" | "check" | "copy" | "close" | "plus" | "trash" | "pencil"; size?: number }) {
   const paths: Record<typeof name, React.ReactNode> = {
     upload: (
       <>
@@ -122,6 +122,12 @@ export function Icon({ name, size = 15 }: { name: "upload" | "download" | "arrow
       <>
         <path d="M5 12h14" />
         <path d="M12 5v14" />
+      </>
+    ),
+    pencil: (
+      <>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
       </>
     ),
     trash: (

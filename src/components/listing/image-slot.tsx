@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SLOT_INFO, type ProviderName, type Slot } from "@/lib/listing/schema";
 import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
 import { Button, Icon, inputClass } from "../ui";
@@ -20,10 +20,13 @@ type Props = {
 
 /**
  * One image slot with every version kept (newest first) until the seller deletes it.
- * "Apply change" edits the picked version; "New version" starts again from the photos.
+ * "Use this" picks the version for export. "Edit" picks the version to change — the edit
+ * is saved as a new version and the original stays. "New version" starts again from the photos.
  */
 export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect, onDelete }: Props) {
   const [adjust, setAdjust] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const picked = pickedImage(listing.images, slot);
 
   const versions = listing.images
@@ -35,10 +38,18 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
   const others = listing.availableProviders.filter((p) => p !== listing.provider);
   const doneCount = versions.filter((v) => v.img.status === "done").length;
   const busy = pending.length > 0;
+  // The version being edited: the one the seller clicked "Edit" on, else the exported pick.
+  const target = versions.find((v) => v.img.id === editId && v.img.status === "done") ?? versions.find((v) => v.img.id === picked?.id);
+
+  function startEdit(img: ImageDTO) {
+    setEditId(img.id);
+    inputRef.current?.focus();
+  }
 
   function applyChange() {
-    if (!picked || !adjust.trim()) return;
-    onGenerate(slot, picked.provider, { adjust, baseImageId: picked.id });
+    if (!target || !adjust.trim()) return;
+    onGenerate(slot, target.img.provider, { adjust, baseImageId: target.img.id });
+    setAdjust("");
   }
 
   return (
@@ -50,9 +61,9 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
         {slot === "lifestyle" && listing.lifestyleScene && <span className="text-[13px] text-ink-2">· Scene: {listing.lifestyleScene}</span>}
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-0.5 border-2 border-line bg-line">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] gap-2">
         {pending.map((r) => (
-          <div key={r.id} className="flex min-w-0 flex-col bg-paper">
+          <div key={r.id} className="flex min-w-0 flex-col border-2 border-line bg-paper">
             <div className="busy relative flex aspect-square items-end p-3">
               <span className="bg-paper/90 px-2 py-1 text-xs font-semibold text-accent-strong">
                 {r.edit ? "Applying your change" : "Generating"} with {PROVIDER_LABEL[r.provider]}…
@@ -68,20 +79,29 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
             img={img}
             n={n}
             isPicked={picked?.id === img.id}
+            isEditing={target?.img.id === img.id}
             showPick={doneCount > 1}
             onSelect={onSelect}
             onDelete={onDelete}
+            onEdit={startEdit}
           />
         ))}
-        {!pending.length && !versions.length && <div className="striped aspect-square" />}
+        {!pending.length && !versions.length && <div className="striped aspect-square border-2 border-line" />}
       </div>
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <div className="min-w-[240px] flex-1">
           <label htmlFor={`adjust-${slot}`} className="mb-1 block text-xs text-ink-2">
-            Change the {picked ? `selected image (v${versions.find((v) => v.img.id === picked.id)?.n})` : "image"}
+            {target ? (
+              <>
+                Change <b className="text-ink">v{target.n}</b> ({PROVIDER_LABEL[target.img.provider]}) — the original stays
+              </>
+            ) : (
+              "Change an image"
+            )}
           </label>
           <input
+            ref={inputRef}
             id={`adjust-${slot}`}
             value={adjust}
             maxLength={300}
@@ -91,8 +111,8 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
             className={inputClass}
           />
         </div>
-        <Button variant="primary" disabled={!picked || !adjust.trim()} onClick={applyChange} title="Edits the selected image and keeps the original">
-          Apply change
+        <Button variant="primary" disabled={!target || !adjust.trim()} onClick={applyChange} title="Saves the edit as a new version; the original stays">
+          Apply to v{target?.n ?? "–"}
         </Button>
         <Button disabled={busy} onClick={() => onGenerate(slot, listing.provider, { adjust })} title="Makes a fresh image from your photos">
           <Icon name="refresh" size={13} /> New version
@@ -112,15 +132,21 @@ function Version(props: {
   img: ImageDTO;
   n: number;
   isPicked: boolean;
+  isEditing: boolean;
   showPick: boolean;
   onSelect: (img: ImageDTO) => void;
   onDelete: (img: ImageDTO) => void;
+  onEdit: (img: ImageDTO) => void;
 }) {
   const { img, n } = props;
   const ready = img.status === "done" && img.url;
 
   return (
-    <div className={`flex min-w-0 flex-col bg-paper ${props.isPicked && props.showPick ? "outline-2 -outline-offset-2 outline-accent" : ""}`}>
+    <div
+      className={`flex min-w-0 flex-col border-2 bg-paper ${
+        props.isPicked && props.showPick ? "border-accent" : props.isEditing ? "border-dashed border-ink" : "border-line"
+      }`}
+    >
       <div className="relative aspect-square bg-white">
         {ready ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -134,6 +160,9 @@ function Version(props: {
           </div>
         )}
         <span className="absolute left-2 top-2 bg-ink px-1.5 py-0.5 text-[11px] font-semibold text-paper">v{n}</span>
+        {props.isEditing && ready && (
+          <span className="absolute right-2 top-2 bg-paper px-1.5 py-0.5 text-[11px] font-semibold text-ink">Editing</span>
+        )}
       </div>
       <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
         <div className="flex items-baseline justify-between gap-2">
@@ -157,6 +186,20 @@ function Version(props: {
                 "Use this"
               )}
             </Button>
+          )}
+          {ready && (
+            <button
+              type="button"
+              aria-label={`Edit version ${n}`}
+              aria-pressed={props.isEditing}
+              title="Edit this version (keeps the original)"
+              onClick={() => props.onEdit(img)}
+              className={`inline-flex h-8 w-[34px] cursor-pointer items-center justify-center border ${
+                props.isEditing ? "border-ink bg-ink text-paper" : "border-line bg-transparent text-ink hover:bg-ink/[0.07]"
+              }`}
+            >
+              <Icon name="pencil" size={14} />
+            </button>
           )}
           {ready && (
             <a

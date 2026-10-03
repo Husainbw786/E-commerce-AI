@@ -30,16 +30,24 @@ test("upload → questions → listing → images, edit, versions → export", a
 
   // Edit the primary image: the original stays, a v2 appears.
   const primary = page.locator("section", { has: page.getByRole("heading", { name: "Primary image" }) });
-  await primary.getByLabel(/Change the selected image/).fill("zoom out a little");
-  await primary.getByRole("button", { name: "Apply change" }).click();
-  await expect(primary.getByText("v2", { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(primary.getByText("v1", { exact: true })).toBeVisible();
+  await primary.getByLabel(/Change v1/).fill("zoom out a little");
+  await primary.getByRole("button", { name: "Apply to v1" }).click();
+  await expect(primary.getByText("v2", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(primary.getByText("v1", { exact: true }).first()).toBeVisible();
   await expect(primary.getByText("“zoom out a little”")).toBeVisible();
 
-  // Delete v2 → only v1 left.
+  // Edit v2 (not the exported pick) via its own Edit button → v3; v1 stays the pick.
+  await primary.getByRole("button", { name: "Edit version 2" }).click();
+  await primary.getByLabel(/Change v2/).fill("zoom in a little");
+  await primary.getByRole("button", { name: "Apply to v2" }).click();
+  await expect(primary.getByText("v3", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(primary.getByRole("button", { name: "Selected" })).toHaveCount(1);
+
+  // Delete v3 → v1 and v2 left.
   page.once("dialog", (d) => d.accept());
-  await primary.getByRole("button", { name: "Delete version 2" }).click();
-  await expect(primary.getByText("v2", { exact: true })).toHaveCount(0);
+  await primary.getByRole("button", { name: "Delete version 3" }).click();
+  await expect(primary.getByText("v3", { exact: true })).toHaveCount(0);
+  await expect(primary.getByText("v2", { exact: true }).first()).toBeVisible();
 
   await page.getByRole("button", { name: /Export listing/ }).click();
   await page.getByLabel("SKU / file prefix").fill("E2E-1");

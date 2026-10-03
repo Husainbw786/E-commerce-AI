@@ -13,6 +13,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { MOCK_AI: "1", IMAGE_MODE: "dual", DATABASE_URL: "", BLOB_READ_WRITE_TOKEN: "", UPSTASH_REDIS_REST_URL: "" },
+    env: { MOCK_AI: "1", IMAGE_MODE: "dual", DATABASE_URL: "", BLOB_READ_WRITE_TOKEN: "", S3_BUCKET: "", UPSTASH_REDIS_REST_URL: "" },
   },
 });
