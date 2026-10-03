@@ -17,6 +17,7 @@ export type ImageDTO = {
 export type ListingDTO = {
   id: string;
   sourceUrl: string;
+  sourceUrls: string[];
   imageCount: number;
   status: "analysing" | "ready" | "failed";
   details: ListingDetails | null;

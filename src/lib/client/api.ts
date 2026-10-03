@@ -22,8 +22,8 @@ export async function uploadPhoto(file: Blob, name: string): Promise<string> {
   return url;
 }
 
-export async function createListing(sourceUrl: string, imageCount: number) {
-  return (await request<{ listing: ListingDTO }>("/api/listings", json({ sourceUrl, imageCount }))).listing;
+export async function createListing(sourceUrls: string[], imageCount: number) {
+  return (await request<{ listing: ListingDTO }>("/api/listings", json({ sourceUrls, imageCount }))).listing;
 }
 
 export async function fetchListing(id: string) {

@@ -14,14 +14,14 @@ export function geminiImageProvider(): ImageProvider {
   return {
     name: "gemini",
     model,
-    async generate({ referenceImage, prompt }) {
+    async generate({ referenceImages, prompt }) {
       const response = await gemini().models.generateContent({
         model,
         contents: [
           {
             role: "user",
             parts: [
-              { inlineData: { mimeType: "image/jpeg", data: referenceImage.toString("base64") } },
+              ...referenceImages.map((img) => ({ inlineData: { mimeType: "image/jpeg", data: img.toString("base64") } })),
               { text: prompt },
             ],
           },

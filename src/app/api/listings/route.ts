@@ -14,7 +14,7 @@ export const GET = handler(async () => {
 
 export const POST = handler(async (req: NextRequest) => {
   const body = CreateListingBody.parse(await req.json());
-  if (!isStoredUrl(body.sourceUrl)) throw new HttpError(400, "Please upload the photo first.");
+  if (!body.sourceUrls.every(isStoredUrl)) throw new HttpError(400, "Please upload the photos first.");
 
   const ip = clientIp(req);
   const limited = await checkRateLimit("listing", ip);

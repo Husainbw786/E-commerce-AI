@@ -14,7 +14,7 @@ export function openai() {
 
 export type AnalysisResult = { details: ListingDetails; model: string; usage: unknown };
 
-export async function analyseProduct(photoJpeg: Buffer, imageCount: number): Promise<AnalysisResult> {
+export async function analyseProduct(photos: Buffer[], imageCount: number): Promise<AnalysisResult> {
   const model = env().OPENAI_TEXT_MODEL;
   if (env().MOCK_AI) return { details: mockListing(), model: "mock", usage: null };
 
@@ -25,8 +25,12 @@ export async function analyseProduct(photoJpeg: Buffer, imageCount: number): Pro
       {
         role: "user",
         content: [
-          { type: "input_text", text: listingUserPrompt(imageCount) },
-          { type: "input_image", image_url: `data:image/jpeg;base64,${photoJpeg.toString("base64")}`, detail: "high" },
+          { type: "input_text", text: listingUserPrompt(imageCount, photos.length) },
+          ...photos.map((p) => ({
+            type: "input_image" as const,
+            image_url: `data:image/jpeg;base64,${p.toString("base64")}`,
+            detail: "high" as const,
+          })),
         ],
       },
     ],

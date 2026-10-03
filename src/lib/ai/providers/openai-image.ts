@@ -12,10 +12,10 @@ export function openaiImageProvider(): ImageProvider {
   return {
     name: "openai",
     model,
-    async generate({ referenceImage, prompt }) {
+    async generate({ referenceImages, prompt }) {
       const result = await openai().images.edit({
         model,
-        image: await toFile(referenceImage, "product.jpg", { type: "image/jpeg" }),
+        image: await Promise.all(referenceImages.map((img, i) => toFile(img, `product-${i + 1}.jpg`, { type: "image/jpeg" }))),
         prompt,
         size: "1024x1024",
         quality: env().OPENAI_IMAGE_QUALITY,

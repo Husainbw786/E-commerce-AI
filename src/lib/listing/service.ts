@@ -31,10 +31,20 @@ function toImageDTO(img: ListingImage): ImageDTO {
   };
 }
 
+/** Rows created before multi-photo support only have sourceUrl. */
+function sourcesOf(listing: Listing): string[] {
+  return listing.sourceUrls?.length ? listing.sourceUrls : [listing.sourceUrl];
+}
+
+async function readSources(listing: Listing): Promise<Buffer[]> {
+  return Promise.all(sourcesOf(listing).map(readStoredFile));
+}
+
 function toDTO(listing: Listing, images: ListingImage[]): ListingDTO {
   return {
     id: listing.id,
     sourceUrl: listing.sourceUrl,
+    sourceUrls: sourcesOf(listing),
     imageCount: listing.imageCount,
     status: listing.status,
     details: listing.details ?? null,
@@ -97,20 +107,21 @@ export async function listListings(limit = 100): Promise<ListingSummaryDTO[]> {
 }
 
 /** Step 1: store the listing and run the text analysis. */
-export async function createListing(input: { sourceUrl: string; imageCount: number; clientIp: string }): Promise<ListingDTO> {
+export async function createListing(input: { sourceUrls: string[]; imageCount: number; clientIp: string }): Promise<ListingDTO> {
   const d = await db();
-  const photo = await readStoredFile(input.sourceUrl).catch(() => {
+  const sourceUrls = Array.from(new Set(input.sourceUrls));
+  const photos = await Promise.all(sourceUrls.map(readStoredFile)).catch(() => {
     throw new HttpError(400, "Uploaded photo not found. Please upload again.");
   });
 
   const [row] = await d
     .insert(listings)
-    .values({ sourceUrl: input.sourceUrl, imageCount: input.imageCount, clientIp: input.clientIp })
+    .values({ sourceUrl: sourceUrls[0], sourceUrls, imageCount: input.imageCount, clientIp: input.clientIp })
     .returning();
 
   const started = Date.now();
   try {
-    const result = await analyseProduct(await toAnalysisJpeg(photo), input.imageCount);
+    const result = await analyseProduct(await Promise.all(photos.map(toAnalysisJpeg)), input.imageCount);
     const details = postprocess(result.details);
     await d
       .update(listings)
@@ -153,7 +164,7 @@ export async function deleteListing(id: string): Promise<void> {
   const d = await db();
   const images = await d.select().from(listingImages).where(eq(listingImages.listingId, id));
   await d.delete(listings).where(eq(listings.id, id));
-  await deleteFiles([listing.sourceUrl, ...images.map((i) => i.url).filter((u): u is string => !!u)]).catch((err) =>
+  await deleteFiles([...sourcesOf(listing), ...images.map((i) => i.url).filter((u): u is string => !!u)]).catch((err) =>
     console.error("[delete] blob cleanup failed", err),
   );
 }
@@ -187,13 +198,13 @@ export async function generateImage(input: { listingId: string; slot: Slot; prov
 
   const started = Date.now();
   try {
-    const reference = await readStoredFile(listing.sourceUrl);
+    const referenceImages = await readSources(listing);
     let result;
     try {
-      result = await provider.generate({ referenceImage: reference, prompt });
+      result = await provider.generate({ referenceImages, prompt });
     } catch (err) {
       if (!isTransient(err)) throw err;
-      result = await provider.generate({ referenceImage: reference, prompt });
+      result = await provider.generate({ referenceImages, prompt });
     }
     const jpeg = await normalizeListingImage(result.image);
     const url = await saveFile(`listings/${listing.id}`, "jpg", jpeg, "image/jpeg");

@@ -59,7 +59,7 @@ export function mockImageProvider(name: ProviderName): ImageProvider {
   return {
     name,
     model: "mock",
-    async generate({ referenceImage, prompt }) {
+    async generate({ referenceImages, prompt }) {
       await new Promise((r) => setTimeout(r, 800 + Math.random() * 1500));
       // MOCK_FAIL_PROVIDER=gemini simulates a provider outage (tests fallback mode).
       if (process.env.MOCK_FAIL_PROVIDER === name) throw new Error(`${name} mock failure`);
@@ -67,7 +67,7 @@ export function mockImageProvider(name: ProviderName): ImageProvider {
       const svg = Buffer.from(
         `<svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg"><text x="40" y="990" font-family="Arial" font-size="30" fill="#605d5d">${label.replace(/[<&>]/g, "")}</text></svg>`,
       );
-      const product = await sharp(referenceImage).resize(820, 820, { fit: "inside" }).toBuffer();
+      const product = await sharp(referenceImages[0]).resize(820, 820, { fit: "inside" }).toBuffer();
       const image = await sharp({ create: { width: 1024, height: 1024, channels: 3, background: tint } })
         .composite([{ input: product, gravity: "center" }, { input: svg }])
         .png()

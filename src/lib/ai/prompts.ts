@@ -56,8 +56,12 @@ If pack quantity > 1, the detail image may show the full pack; the primary image
 
 Write in simple English a first-time seller understands.`;
 
-export function listingUserPrompt(imageCount: number) {
-  return `Here is the product photo. The seller wants ${imageCount} listing image${imageCount > 1 ? "s" : ""}. Return the complete listing.`;
+export function listingUserPrompt(imageCount: number, photoCount = 1) {
+  const photos =
+    photoCount > 1
+      ? `Here are ${photoCount} photos of the SAME single product from different angles (not ${photoCount} different products, and not a pack of ${photoCount} unless the photos clearly show several pieces together). Use all of them to judge shape, material, details and size.`
+      : "Here is the product photo.";
+  return `${photos} The seller wants ${imageCount} listing image${imageCount > 1 ? "s" : ""}. Return the complete listing.`;
 }
 
 const SLOT_RULES: Record<Slot, string> = {
@@ -70,7 +74,7 @@ const SLOT_RULES: Record<Slot, string> = {
 };
 
 const FIDELITY_RULES =
-  "Use the reference photo as the ground truth. Reproduce the EXACT same product: same shape, proportions, colours, materials, texture, logo and parts. Do not add, remove or redesign anything. Exactly one product presentation in one image — never a collage, grid, split-screen or multiple panels. Photorealistic e-commerce product photography, even soft studio lighting, sharp focus.";
+  "Use the reference photo(s) as the ground truth. If there are several, they show the SAME single product from different angles — combine them to get every detail right, but still show it only once (or the stated pack). Reproduce the EXACT same product: same shape, proportions, colours, materials, texture, logo and parts. Do not add, remove or redesign anything. Exactly one product presentation in one image — never a collage, grid, split-screen or multiple panels. Photorealistic e-commerce product photography, even soft studio lighting, sharp focus.";
 
 export function buildImagePrompt(details: ListingDetails, slot: Slot, adjust?: string): string {
   const shot = details.shotPlan.find((s) => s.slot === slot);

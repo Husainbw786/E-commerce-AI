@@ -12,6 +12,8 @@ export const listings = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     sourceUrl: text("source_url").notNull(),
+    /** All reference photos, first = main. sourceUrl is kept equal to sourceUrls[0]. */
+    sourceUrls: jsonb("source_urls").$type<string[]>().notNull().default([]),
     imageCount: integer("image_count").notNull(),
     status: listingStatus("status").notNull().default("analysing"),
     details: jsonb("details").$type<ListingDetails>(),

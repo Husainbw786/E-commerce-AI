@@ -80,8 +80,10 @@ export const ListingPatch = z.object({
 });
 export type ListingPatch = z.infer<typeof ListingPatch>;
 
+export const MAX_SOURCE_PHOTOS = 4;
+
 export const CreateListingBody = z.object({
-  sourceUrl: z.string().min(1).max(2000),
+  sourceUrls: z.array(z.string().min(1).max(2000)).min(1).max(MAX_SOURCE_PHOTOS),
   imageCount: z.number().int().min(1).max(3),
 });
 

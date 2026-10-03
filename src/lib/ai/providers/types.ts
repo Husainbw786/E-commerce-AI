@@ -1,8 +1,8 @@
 import type { ProviderName } from "@/lib/listing/schema";
 
 export type ImageRequest = {
-  /** Original product photo (JPEG). */
-  referenceImage: Buffer;
+  /** Seller's product photos (JPEG), first = main view. */
+  referenceImages: Buffer[];
   prompt: string;
 };
 

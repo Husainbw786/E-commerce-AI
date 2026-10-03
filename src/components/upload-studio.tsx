@@ -4,67 +4,86 @@ import imageCompression from "browser-image-compression";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createListing, uploadPhoto } from "@/lib/client/api";
-import { SLOT_INFO, slotsFor } from "@/lib/listing/schema";
+import { MAX_SOURCE_PHOTOS, SLOT_INFO, slotsFor } from "@/lib/listing/schema";
 import { Button, Icon, SectionHeading, Segmented, StepsBar } from "./ui";
 
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 const ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif";
 
-function formatBytes(n: number) {
-  return n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
-}
+type Photo = { id: string; file: File; preview: string };
 
 type Stage = "idle" | "compressing" | "uploading" | "analysing";
 const STAGE_TEXT: Record<Stage, string> = {
   idle: "",
-  compressing: "Preparing photo…",
-  uploading: "Uploading photo…",
-  analysing: "Reading your product and writing the listing… (about 10–30 s)",
+  compressing: "Preparing photos…",
+  uploading: "Uploading photos…",
+  analysing: "Reading your product and writing the listing… (about 20–40 s)",
 };
 
 export function UploadStudio({ mode }: { mode: "dual" | "fallback" }) {
   const router = useRouter();
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [count, setCount] = useState<1 | 2 | 3>(3);
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState("");
   const [drag, setDrag] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const photosRef = useRef(photos);
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+  // Free preview URLs when leaving the page.
+  useEffect(() => () => photosRef.current.forEach((p) => URL.revokeObjectURL(p.preview)), []);
 
-  useEffect(() => () => void (preview && URL.revokeObjectURL(preview)), [preview]);
-
-  function pick(f: File | undefined | null) {
+  function add(list: FileList | File[] | null | undefined) {
     setError("");
-    if (!f) return;
-    if (!f.type.startsWith("image/") && !/\.(heic|heif)$/i.test(f.name)) return setError("Please choose a photo (JPG, PNG or WEBP).");
-    if (f.size > MAX_INPUT_BYTES) return setError("That photo is over 20 MB. Please pick a smaller one.");
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+    const files = Array.from(list ?? []);
+    if (!files.length) return;
+    const room = MAX_SOURCE_PHOTOS - photos.length;
+    const accepted: Photo[] = [];
+    for (const f of files) {
+      if (!f.type.startsWith("image/") && !/\.(heic|heif)$/i.test(f.name)) {
+        setError("Please choose photos (JPG, PNG or WEBP).");
+        continue;
+      }
+      if (f.size > MAX_INPUT_BYTES) {
+        setError(`${f.name} is over 20 MB. Please pick a smaller one.`);
+        continue;
+      }
+      if (accepted.length >= room) {
+        setError(`Up to ${MAX_SOURCE_PHOTOS} photos per product.`);
+        break;
+      }
+      accepted.push({ id: crypto.randomUUID(), file: f, preview: URL.createObjectURL(f) });
+    }
+    if (accepted.length) setPhotos((p) => [...p, ...accepted]);
   }
 
-  function clear() {
-    setFile(null);
-    setPreview(null);
-    if (inputRef.current) inputRef.current.value = "";
+  function remove(id: string) {
+    setPhotos((list) => {
+      const gone = list.find((p) => p.id === id);
+      if (gone) URL.revokeObjectURL(gone.preview);
+      return list.filter((p) => p.id !== id);
+    });
+  }
+
+  function makeMain(id: string) {
+    setPhotos((list) => [...list.filter((p) => p.id === id), ...list.filter((p) => p.id !== id)]);
   }
 
   async function generate() {
-    if (!file) return;
+    if (!photos.length) return;
     setError("");
     try {
       setStage("compressing");
-      const small = await imageCompression(file, {
-        maxWidthOrHeight: 2048,
-        maxSizeMB: 3,
-        fileType: "image/jpeg",
-        initialQuality: 0.88,
-        useWebWorker: true,
-      });
+      const small = await Promise.all(
+        photos.map((p) =>
+          imageCompression(p.file, { maxWidthOrHeight: 2048, maxSizeMB: 3, fileType: "image/jpeg", initialQuality: 0.88, useWebWorker: true }),
+        ),
+      );
       setStage("uploading");
-      const url = await uploadPhoto(small, file.name.replace(/\.[^.]+$/, "") + ".jpg");
+      const urls = await Promise.all(small.map((blob, i) => uploadPhoto(blob, photos[i].file.name.replace(/\.[^.]+$/, "") + ".jpg")));
       setStage("analysing");
-      const listing = await createListing(url, count);
+      const listing = await createListing(urls, count);
       router.push(`/listing/${listing.id}`);
     } catch (err) {
       setStage("idle");
@@ -80,17 +99,21 @@ export function UploadStudio({ mode }: { mode: "dual" | "fallback" }) {
       <main className="mx-auto max-w-[1120px] px-6 pb-14 pt-8">
         <div className="mb-8 max-w-[680px]">
           <h1 className="m-0 mb-2.5 text-[clamp(30px,5vw,44px)] font-extrabold leading-[1.06] tracking-[-0.02em] [text-wrap:pretty]">
-            Upload one photo. Get a full Meesho listing.
+            Upload a photo. Get a full Meesho listing.
           </h1>
           <p className="m-0 max-w-[54ch] text-base text-muted [text-wrap:pretty]">
-            Drop a plain product photo. You get 1 to 3 ready-to-upload images and every listing field, written for Meesho and ready to copy.
+            Drop a plain product photo — or a few angles of it. You get 1 to 3 ready-to-upload images and every listing field, written for Meesho and ready to copy.
           </p>
         </div>
 
         <div className="grid items-start gap-10 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
           <section className="min-w-0">
-            <SectionHeading num="01" title="Product photo" />
-            {!preview ? (
+            <SectionHeading
+              num="01"
+              title="Product photos"
+              right={photos.length > 0 && <span className="text-[13px] text-muted">{photos.length} of {MAX_SOURCE_PHOTOS}</span>}
+            />
+            {photos.length === 0 ? (
               <>
                 <label
                   onDragOver={(e) => {
@@ -101,43 +124,86 @@ export function UploadStudio({ mode }: { mode: "dual" | "fallback" }) {
                   onDrop={(e) => {
                     e.preventDefault();
                     setDrag(false);
-                    pick(e.dataTransfer.files?.[0]);
+                    add(e.dataTransfer.files);
                   }}
                   className={`relative flex aspect-[4/3] cursor-pointer flex-col items-start justify-end gap-2.5 border-2 border-dashed p-6 hover:border-accent ${
                     drag ? "border-accent bg-accent-soft" : "border-line bg-paper"
                   }`}
                 >
-                  <input ref={inputRef} type="file" accept={ACCEPT} className="absolute size-0 opacity-0" onChange={(e) => pick(e.target.files?.[0])} />
+                  <input type="file" multiple accept={ACCEPT} className="absolute size-0 opacity-0" onChange={(e) => {
+                    add(e.target.files);
+                    e.target.value = "";
+                  }} />
                   <span className="text-accent">
                     <Icon name="upload" size={36} />
                   </span>
-                  <span className="text-[22px] font-extrabold leading-tight">Drop a product photo here</span>
-                  <span className="text-sm text-muted">or click to browse · JPG, PNG or WEBP up to 20 MB</span>
+                  <span className="text-[22px] font-extrabold leading-tight">Drop product photos here</span>
+                  <span className="text-sm text-muted">or click to browse · 1 to {MAX_SOURCE_PHOTOS} photos · JPG, PNG or WEBP up to 20 MB each</span>
                 </label>
-                <p className="mt-4 max-w-[48ch] text-[13px] text-muted">
-                  Works best with one product in frame, even light and the whole item visible. Background can be anything. If you sell a pack (e.g. 2 pieces), put all pieces in the photo.
+                <p className="mt-4 max-w-[52ch] text-[13px] text-muted">
+                  One photo works. Extra photos from other angles (side, back, close-up) help the AI get details and size right. All photos must be of the same product. If you sell a pack, show all pieces together in the first photo.
                 </p>
               </>
             ) : (
-              <>
-                <div className="relative aspect-[4/3] border border-line bg-white">
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDrag(true);
+                }}
+                onDragLeave={() => setDrag(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDrag(false);
+                  add(e.dataTransfer.files);
+                }}
+              >
+                <div className={`relative aspect-[4/3] border bg-white ${drag ? "border-accent" : "border-line"}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={preview} alt="Uploaded product" className="absolute inset-0 size-full object-contain p-6" />
+                  <img src={photos[0].preview} alt="Main product photo" className="absolute inset-0 size-full object-contain p-6" />
+                  <span className="absolute left-3 top-3 bg-ink px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-paper">Main photo</span>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <div className="mr-auto min-w-0">
-                    <div className="max-w-[280px] truncate text-sm font-semibold">{file?.name}</div>
-                    <div className="text-xs text-muted">{file && formatBytes(file.size)}</div>
-                  </div>
-                  <label className="relative inline-flex cursor-pointer items-center gap-1.5 border border-line px-3 py-[7px] text-[13px] font-extrabold hover:bg-ink/[0.07]">
-                    <input type="file" accept={ACCEPT} className="absolute size-0 opacity-0" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
-                    Replace
-                  </label>
-                  <Button variant="ghost" onClick={clear} disabled={busy}>
-                    Remove
-                  </Button>
+                <div className="mt-2 grid grid-cols-4 gap-2">
+                  {photos.map((p, i) => (
+                    <div key={p.id} className={`relative aspect-square border-2 bg-white ${i === 0 ? "border-accent" : "border-line"}`}>
+                      <button
+                        type="button"
+                        onClick={() => makeMain(p.id)}
+                        disabled={busy || i === 0}
+                        aria-label={i === 0 ? `${p.file.name} (main photo)` : `Make ${p.file.name} the main photo`}
+                        title={i === 0 ? "Main photo" : "Make main photo"}
+                        className="block size-full cursor-pointer border-0 bg-transparent p-1 disabled:cursor-default"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.preview} alt="" className="size-full object-contain" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(p.id)}
+                        disabled={busy}
+                        aria-label={`Remove ${p.file.name}`}
+                        className="absolute right-0 top-0 flex size-6 cursor-pointer items-center justify-center border-0 bg-ink text-paper hover:bg-accent disabled:opacity-40"
+                      >
+                        <Icon name="close" size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {photos.length < MAX_SOURCE_PHOTOS && (
+                    <label className="relative flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 border-2 border-dashed border-line text-center text-xs font-extrabold text-muted hover:border-accent hover:text-accent">
+                      <input type="file" multiple accept={ACCEPT} disabled={busy} className="absolute size-0 opacity-0" onChange={(e) => {
+                        add(e.target.files);
+                        e.target.value = "";
+                      }} />
+                      <Icon name="plus" size={18} />
+                      Add angle
+                    </label>
+                  )}
                 </div>
-              </>
+                <p className="mt-3 text-[13px] text-muted">
+                  {photos.length === 1
+                    ? "Have more angles? Add side, back or close-up shots of the same product for better results."
+                    : "Tap a photo to make it the main one. All photos are used as references for every image."}
+                </p>
+              </div>
             )}
           </section>
 
@@ -173,10 +239,10 @@ export function UploadStudio({ mode }: { mode: "dual" | "fallback" }) {
               <Button
                 variant="primary"
                 onClick={generate}
-                disabled={!file || busy}
+                disabled={!photos.length || busy}
                 className="w-full justify-between px-[18px] py-4 text-base"
               >
-                <span>{!file ? "Add a photo to generate" : busy ? STAGE_TEXT[stage] : `Generate ${count} image${count > 1 ? "s" : ""} + listing`}</span>
+                <span>{!photos.length ? "Add a photo to generate" : busy ? STAGE_TEXT[stage] : `Generate ${count} image${count > 1 ? "s" : ""} + listing`}</span>
                 <Icon name="arrow" size={20} />
               </Button>
               {error ? (

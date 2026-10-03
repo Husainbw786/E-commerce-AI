@@ -147,12 +147,24 @@ export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
 
         <div className="mb-12 grid items-start gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="min-w-0">
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Your photo</div>
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+              Your photo{listing.sourceUrls.length > 1 ? `s (${listing.sourceUrls.length})` : ""}
+            </div>
             <div className="relative aspect-square max-w-[240px] border border-line bg-white">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={listing.sourceUrl} alt="Original product photo" className="absolute inset-0 size-full object-contain p-3" />
+              <img src={listing.sourceUrls[0]} alt="Main product photo" className="absolute inset-0 size-full object-contain p-3" />
             </div>
-            <p className="mt-2 text-xs text-muted">AI images are based on this photo. Make sure they match your real product before publishing.</p>
+            {listing.sourceUrls.length > 1 && (
+              <div className="mt-2 grid max-w-[240px] grid-cols-4 gap-1.5">
+                {listing.sourceUrls.slice(1).map((url, i) => (
+                  <a key={url} href={url} target="_blank" rel="noreferrer" className="relative block aspect-square border border-line bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Product photo ${i + 2}`} className="absolute inset-0 size-full object-contain p-1" />
+                  </a>
+                ))}
+              </div>
+            )}
+            <p className="mt-2 text-xs text-muted">AI images are based on these photos. Make sure they match your real product before publishing.</p>
           </aside>
           <div className="min-w-0">
             {slots.map((slot, i) => (
