@@ -23,6 +23,12 @@ const schema = z.object({
 
   DATABASE_URL: optional,
   BLOB_READ_WRITE_TOKEN: optional,
+  // S3-compatible storage (Neon storage). Used instead of Blob when S3_BUCKET is set.
+  AWS_ENDPOINT_URL_S3: optional,
+  AWS_ACCESS_KEY_ID: optional,
+  AWS_SECRET_ACCESS_KEY: optional,
+  AWS_REGION: z.string().default("us-east-2"),
+  S3_BUCKET: optional,
   UPSTASH_REDIS_REST_URL: optional,
   UPSTASH_REDIS_REST_TOKEN: optional,
 

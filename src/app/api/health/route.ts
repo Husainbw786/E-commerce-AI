@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
+import { storageBackend } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export function GET() {
     openai: !!e.OPENAI_API_KEY,
     gemini: !!e.GEMINI_API_KEY,
     database: e.DATABASE_URL ? "neon" : "local-pglite",
-    storage: e.BLOB_READ_WRITE_TOKEN ? "vercel-blob" : "local-files",
+    storage: storageBackend(),
     rateLimit: !!(e.UPSTASH_REDIS_REST_URL && e.UPSTASH_REDIS_REST_TOKEN),
     models: { text: e.OPENAI_TEXT_MODEL, openaiImage: e.OPENAI_IMAGE_MODEL, geminiImage: e.GEMINI_IMAGE_MODEL },
     imageMode: e.IMAGE_MODE,

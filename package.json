@@ -17,6 +17,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1145.0",
     "@electric-sql/pglite": "^0.5.8",
     "@google/genai": "^2.26.0",
     "@neondatabase/serverless": "^1.2.0",
