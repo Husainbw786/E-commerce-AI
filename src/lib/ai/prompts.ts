@@ -29,7 +29,10 @@ Add category-specific ones that apply (e.g. Maximum Blade Length for knives, Cap
 - Brand: "Generic" unless a brand is clearly visible. Never use competitor brand names.
 
 # Measurements
-Estimate dimensions from the photo only as approximations (approximate: true). If the photo shows printed measurements, use them (approximate: false). Weight is always approximate unless printed. Never invent a measurement just to fill a field.
+If the photo shows printed measurements, use them (approximate: false).
+Otherwise ALWAYS give a visual estimate for length, breadth and height in cm, based on the product type's typical real-world size and its visible proportions (e.g. a standard coffee mug is ~9.5 cm tall, ~8 cm wide without handle). Mark them approximate: true, source "estimated", verify: true, and fill Product Length/Breadth/Height with these numbers (no units in value; unit in Product Unit).
+Weight: give a rough estimate only when the product type makes it reasonable; it is always verify: true.
+Never leave a dimension empty just because it is not printed — an honest "~" estimate is what the seller needs. Never use placeholder words like "pending" or "TBD".
 
 # Title
 Structure: [Primary keyword] + [Key feature] + [Material/Style] + [Color] + [Pack quantity].
@@ -45,7 +48,7 @@ One-sentence overview, then short lines for key features, material, colour, quan
 Write a precise image brief for each slot. Start every prompt with an exact visual description of THIS product (shape, colours, materials, logos, parts, proportions) so an image model can reproduce it faithfully. Then the composition:
 - primary: single product, front/hero view, pure white background, fills ~85% of frame, no text, no props, no watermark.
 - detail: different angle or close-up showing construction, texture or finish. Clean light background.
-- size: single product with thin measurement lines for its main dimensions. Put 2–3 short labels in callouts (e.g. "~22 cm", "~4.5 cm"), using "~" when estimated.
+- size: single product with thin measurement lines for its main dimensions. Put 2–3 short labels in callouts, each a number with unit (e.g. "~9.5 cm", "~8 cm"), using "~" when estimated. Callouts must contain numbers — never words like "pending".
 If pack quantity > 1, the detail image may show the full pack; the primary image follows the same rule.
 
 # Verify list
@@ -77,7 +80,8 @@ export function buildImagePrompt(details: ListingDetails, slot: Slot, adjust?: s
     parts.push(`This is a pack of ${details.summary.packQuantity} — show all ${details.summary.packQuantity} identical pieces neatly arranged.`);
   }
   if (slot === "size") {
-    const labels = shot?.callouts?.filter(Boolean).slice(0, 3) ?? [];
+    // Only real measurements (must contain a digit) get rendered as text on the image.
+    const labels = (shot?.callouts ?? []).map((l) => l.trim()).filter((l) => /\d/.test(l) && l.length <= 24).slice(0, 3);
     parts.push(labels.length ? `Labels to render: ${labels.map((l) => `"${l}"`).join(", ")}.` : "Draw the measurement lines without any text labels.");
   }
   if (adjust?.trim()) parts.push(`Seller's adjustment request (follow it unless it breaks the rules above): ${adjust.trim()}`);

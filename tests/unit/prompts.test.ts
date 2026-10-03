@@ -21,6 +21,13 @@ describe("buildImagePrompt", () => {
     expect(p).not.toContain("extra");
   });
 
+  it("never renders placeholder labels without numbers", () => {
+    const pending = postprocess(rawListing({ shotPlan: [{ slot: "size", prompt: "side", callouts: ["Height: pending", "Width: TBD"] }] }));
+    const p = buildImagePrompt(pending, "size");
+    expect(p).not.toContain("pending");
+    expect(p).toContain("without any text labels");
+  });
+
   it("appends the seller adjustment", () => {
     expect(buildImagePrompt(d, "detail", "  softer shadow ")).toContain("softer shadow");
   });

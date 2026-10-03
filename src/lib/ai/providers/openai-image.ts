@@ -4,6 +4,9 @@ import { env } from "@/lib/env";
 import { openai } from "../openai-text";
 import type { ImageProvider } from "./types";
 
+// gpt-image-2+ keep input detail on their own and reject this parameter.
+const supportsInputFidelity = (model: string) => /^gpt-image-1/.test(model);
+
 export function openaiImageProvider(): ImageProvider {
   const model = env().OPENAI_IMAGE_MODEL;
   return {
@@ -16,7 +19,7 @@ export function openaiImageProvider(): ImageProvider {
         prompt,
         size: "1024x1024",
         quality: env().OPENAI_IMAGE_QUALITY,
-        input_fidelity: "high",
+        ...(supportsInputFidelity(model) ? { input_fidelity: "high" as const } : {}),
         background: "opaque",
         output_format: "png",
         n: 1,
