@@ -4,7 +4,7 @@ import imageCompression from "browser-image-compression";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createListing, uploadPhoto } from "@/lib/client/api";
-import { MAX_SOURCE_PHOTOS, SLOT_INFO, slotsFor } from "@/lib/listing/schema";
+import { MAX_SOURCE_PHOTOS, SLOT_INFO, slotsFor, type ProviderName } from "@/lib/listing/schema";
 import { Button, Icon, SectionHeading, Segmented, StepsBar } from "./ui";
 
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
@@ -20,8 +20,15 @@ const STAGE_TEXT: Record<Stage, string> = {
   analysing: "Reading your product and writing the listing… (about 20–40 s)",
 };
 
-export function UploadStudio({ mode }: { mode: "dual" | "fallback" }) {
+const PROVIDER_INFO: Record<ProviderName, { label: string; model: string }> = {
+  gemini: { label: "Gemini", model: "Nano Banana 2" },
+  openai: { label: "OpenAI", model: "GPT Image 2.5" },
+};
+const PROVIDER_STORAGE_KEY = "listora:image-provider";
+
+export function UploadStudio({ providers, defaultProvider }: { providers: ProviderName[]; defaultProvider: ProviderName }) {
   const router = useRouter();
+  const [provider, setProvider] = useState<ProviderName>(defaultProvider);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [count, setCount] = useState<1 | 2 | 3>(3);
   const [stage, setStage] = useState<Stage>("idle");
@@ -31,6 +38,23 @@ export function UploadStudio({ mode }: { mode: "dual" | "fallback" }) {
   useEffect(() => {
     photosRef.current = photos;
   }, [photos]);
+  // Remember the last model the seller picked (per browser).
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PROVIDER_STORAGE_KEY) as ProviderName | null;
+      // Read after hydration on purpose: the server can't see localStorage.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved && providers.includes(saved)) setProvider(saved);
+    } catch {}
+  }, [providers]);
+
+  function chooseProvider(p: ProviderName) {
+    setProvider(p);
+    try {
+      localStorage.setItem(PROVIDER_STORAGE_KEY, p);
+    } catch {}
+  }
+
   // Free preview URLs when leaving the page.
   useEffect(() => () => photosRef.current.forEach((p) => URL.revokeObjectURL(p.preview)), []);
 
@@ -83,7 +107,7 @@ export function UploadStudio({ mode }: { mode: "dual" | "fallback" }) {
       setStage("uploading");
       const urls = await Promise.all(small.map((blob, i) => uploadPhoto(blob, photos[i].file.name.replace(/\.[^.]+$/, "") + ".jpg")));
       setStage("analysing");
-      const listing = await createListing(urls, count);
+      const listing = await createListing(urls, count, provider);
       router.push(`/listing/${listing.id}`);
     } catch (err) {
       setStage("idle");
@@ -230,16 +254,41 @@ export function UploadStudio({ mode }: { mode: "dual" | "fallback" }) {
                   );
                 })}
               </ol>
-              <p className="mt-3 text-[13px] text-muted">
-                {mode === "dual" ? "Each image is made by both OpenAI and Gemini — you pick the better one." : "If one image model fails, the other takes over automatically."} Title, description and all Meesho fields are always included.
-              </p>
+              <p className="mt-3 text-[13px] text-muted">Title, description and all Meesho fields are always included.</p>
+            </div>
+
+            <div>
+              <SectionHeading num="03" title="Image model" className="mb-4" />
+              {providers.length === 0 ? (
+                <p className="m-0 text-[13px] font-semibold text-accent-strong">No image model is set up. Add OPENAI_API_KEY or GEMINI_API_KEY.</p>
+              ) : (
+                <>
+                  <Segmented
+                    label="Image model"
+                    value={provider}
+                    onChange={chooseProvider}
+                    options={providers.map((p) => ({
+                      value: p,
+                      label: (
+                        <span className="flex flex-col">
+                          <span>{PROVIDER_INFO[p].label}</span>
+                          <span className="text-xs font-normal opacity-70">{PROVIDER_INFO[p].model}</span>
+                        </span>
+                      ),
+                    }))}
+                  />
+                  <p className="mt-3 text-[13px] text-muted">
+                    Only this model generates your images. Not happy with one? You can retry that image with the other model on the next screen.
+                  </p>
+                </>
+              )}
             </div>
 
             <div>
               <Button
                 variant="primary"
                 onClick={generate}
-                disabled={!photos.length || busy}
+                disabled={!photos.length || busy || providers.length === 0}
                 className="w-full justify-between px-[18px] py-4 text-base"
               >
                 <span>{!photos.length ? "Add a photo to generate" : busy ? STAGE_TEXT[stage] : `Generate ${count} image${count > 1 ? "s" : ""} + listing`}</span>
@@ -250,7 +299,7 @@ export function UploadStudio({ mode }: { mode: "dual" | "fallback" }) {
                   {error}
                 </p>
               ) : (
-                <p className="mt-2 text-xs text-muted">Listing details in ~20 s · images follow in about a minute</p>
+                <p className="mt-2 text-xs text-muted">Listing details in ~30 s · images follow in about 30 s</p>
               )}
             </div>
           </section>

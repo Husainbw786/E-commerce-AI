@@ -13,8 +13,7 @@ const schema = z.object({
   OPENAI_IMAGE_MODEL: z.string().default("gpt-image-2.5-flare"),
   OPENAI_IMAGE_QUALITY: z.enum(["low", "medium", "high", "xhigh", "max", "auto"]).default("high"),
   GEMINI_IMAGE_MODEL: z.string().default("gemini-3.1-flash-image"),
-  IMAGE_MODE: z.enum(["dual", "fallback"]).default("dual"),
-  // Comma-separated provider order. In fallback mode the first one runs first.
+  // Order of image models in the picker; the first available one is the default.
   IMAGE_PROVIDERS: z.string().default("gemini,openai"),
   MOCK_AI: z
     .string()

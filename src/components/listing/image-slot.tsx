@@ -6,7 +6,7 @@ import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
 import { Button, Icon, inputClass } from "../ui";
 import { keyOf, latestImage, pickedImage } from "./use-image-orchestrator";
 
-const PROVIDER_LABEL: Record<ProviderName, string> = { openai: "OpenAI", gemini: "Gemini" };
+export const PROVIDER_LABEL: Record<ProviderName, string> = { openai: "OpenAI", gemini: "Gemini" };
 
 type Props = {
   listing: ListingDTO;
@@ -20,14 +20,12 @@ type Props = {
 
 export function ImageSlot({ listing, slot, index, inflight, requestErrors, onRegenerate, onSelect }: Props) {
   const [adjust, setAdjust] = useState("");
-  const { mode, providers } = listing.plan;
   const picked = pickedImage(listing.images, slot);
 
-  // Dual: always show every provider. Fallback: show providers that were tried (at least the first).
-  const shown = providers.filter(
-    (p, i) => mode === "dual" || i === 0 || latestImage(listing.images, slot, p) || inflight.has(keyOf(slot, p)),
-  );
-  const untried = providers.filter((p) => !shown.includes(p));
+  // The chosen model always has a card; another model appears once the seller tries it.
+  const providers = [listing.provider, ...listing.availableProviders.filter((p) => p !== listing.provider)];
+  const shown = providers.filter((p) => p === listing.provider || latestImage(listing.images, slot, p) || inflight.has(keyOf(slot, p)));
+  const untried = listing.availableProviders.filter((p) => !shown.includes(p));
   const anyBusy = shown.some((p) => inflight.has(keyOf(slot, p)));
 
   return (

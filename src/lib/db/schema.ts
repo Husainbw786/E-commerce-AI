@@ -15,6 +15,8 @@ export const listings = pgTable(
     /** All reference photos, first = main. sourceUrl is kept equal to sourceUrls[0]. */
     sourceUrls: jsonb("source_urls").$type<string[]>().notNull().default([]),
     imageCount: integer("image_count").notNull(),
+    /** Image model the seller chose. Null on rows created before the picker existed. */
+    imageProvider: providerEnum("image_provider"),
     status: listingStatus("status").notNull().default("analysing"),
     details: jsonb("details").$type<ListingDetails>(),
     error: text("error"),

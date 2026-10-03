@@ -85,6 +85,7 @@ export const MAX_SOURCE_PHOTOS = 4;
 export const CreateListingBody = z.object({
   sourceUrls: z.array(z.string().min(1).max(2000)).min(1).max(MAX_SOURCE_PHOTOS),
   imageCount: z.number().int().min(1).max(3),
+  provider: z.enum(PROVIDERS),
 });
 
 export const GenerateImageBody = z.object({

@@ -22,7 +22,7 @@ export function pickedImage(images: ImageDTO[], slot: Slot): ImageDTO | undefine
 }
 
 /**
- * Starts one request per slot × provider as soon as the listing details are ready,
+ * Starts one request per slot (chosen model) as soon as the listing details are ready,
  * keeps track of what is in flight, and polls if the server has pending images
  * this tab didn't start (e.g. after a page refresh).
  */
@@ -61,29 +61,14 @@ export function useImageOrchestrator(initial: ListingDTO) {
     [listing.id, mergeImage],
   );
 
-  // Auto-start generation.
+  // Auto-start generation with the model the seller chose — once per slot.
   useEffect(() => {
     if (listing.status !== "ready") return;
-    const { mode, providers } = listing.plan;
     for (const slot of slotsFor(listing.imageCount)) {
-      if (mode === "dual") {
-        for (const p of providers) {
-          const key = keyOf(slot, p);
-          if (!kicked.current.has(key) && !latestImage(listing.images, slot, p)) run(slot, p);
-        }
-        continue;
-      }
-      // fallback: try providers in order, move on only when the previous one failed.
-      for (const p of providers) {
-        const key = keyOf(slot, p);
-        const img = latestImage(listing.images, slot, p);
-        const failed = img?.status === "failed" || (!img && key in requestErrors);
-        if (failed) continue;
-        if (!img && !kicked.current.has(key)) run(slot, p);
-        break;
-      }
+      const key = keyOf(slot, listing.provider);
+      if (!kicked.current.has(key) && !latestImage(listing.images, slot, listing.provider)) run(slot, listing.provider);
     }
-  }, [listing, requestErrors, run]);
+  }, [listing, run]);
 
   // Poll for server-side pending images this tab isn't waiting on.
   const orphanPending = listing.images.some((i) => i.status === "pending" && !inflight.has(keyOf(i.slot, i.provider)));

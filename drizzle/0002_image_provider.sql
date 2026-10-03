@@ -1,0 +1,1 @@
+ALTER TABLE "listing" ADD COLUMN "image_provider" "image_provider";

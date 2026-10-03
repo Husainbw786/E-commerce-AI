@@ -1,5 +1,7 @@
 # Listora — Implementation Plan
 
+> **Changes after v1 (3 Oct 2026):** (1) up to 4 reference photos per product; (2) seller picks ONE image model at upload — the "both models" (`dual`) mode was removed to halve cost; the other model is a manual per-image retry. (3) Images stored in Neon storage (S3) instead of Vercel Blob.
+>
 > **Status (3 Oct 2026):** Phases 0–6 implemented, except login (deferred by decision — no auth in v1). Library lists all listings. Runs fully in mock mode; real AI/Neon/Blob/Upstash need credentials in env.
 
 Upload one normal product photo → get 1–3 marketplace-ready images + every Meesho listing field, ready to copy.

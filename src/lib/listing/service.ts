@@ -2,7 +2,7 @@ import "server-only";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { analyseProduct } from "@/lib/ai/openai-text";
 import { buildImagePrompt } from "@/lib/ai/prompts";
-import { getImageProvider, imagePlan } from "@/lib/ai/providers";
+import { availableProviders, defaultProvider, getImageProvider } from "@/lib/ai/providers";
 import { db, schema } from "@/lib/db";
 import type { Listing, ListingImage } from "@/lib/db/schema";
 import { HttpError, errorMessage } from "@/lib/http";
@@ -52,7 +52,8 @@ function toDTO(listing: Listing, images: ListingImage[]): ListingDTO {
     sku: listing.sku,
     createdAt: listing.createdAt.toISOString(),
     images: images.map(toImageDTO),
-    plan: imagePlan(),
+    provider: listing.imageProvider ?? defaultProvider(),
+    availableProviders: availableProviders(),
   };
 }
 
@@ -107,7 +108,8 @@ export async function listListings(limit = 100): Promise<ListingSummaryDTO[]> {
 }
 
 /** Step 1: store the listing and run the text analysis. */
-export async function createListing(input: { sourceUrls: string[]; imageCount: number; clientIp: string }): Promise<ListingDTO> {
+export async function createListing(input: { sourceUrls: string[]; imageCount: number; provider: ProviderName; clientIp: string }): Promise<ListingDTO> {
+  if (!availableProviders().includes(input.provider)) throw new HttpError(400, "That image model is not set up.");
   const d = await db();
   const sourceUrls = Array.from(new Set(input.sourceUrls));
   const photos = await Promise.all(sourceUrls.map(readStoredFile)).catch(() => {
@@ -116,7 +118,7 @@ export async function createListing(input: { sourceUrls: string[]; imageCount: n
 
   const [row] = await d
     .insert(listings)
-    .values({ sourceUrl: sourceUrls[0], sourceUrls, imageCount: input.imageCount, clientIp: input.clientIp })
+    .values({ sourceUrl: sourceUrls[0], sourceUrls, imageCount: input.imageCount, imageProvider: input.provider, clientIp: input.clientIp })
     .returning();
 
   const started = Date.now();
@@ -187,6 +189,7 @@ export async function generateImage(input: { listingId: string; slot: Slot; prov
   const listing = await findListing(input.listingId);
   if (listing.status !== "ready" || !listing.details) throw new HttpError(409, "Listing details are not ready yet");
   if (!slotsFor(listing.imageCount).includes(input.slot)) throw new HttpError(400, "This listing does not include that image");
+  if (!availableProviders().includes(input.provider)) throw new HttpError(400, "That image model is not set up.");
 
   const provider = getImageProvider(input.provider);
   const prompt = buildImagePrompt(listing.details, input.slot, input.adjust);

@@ -11,17 +11,17 @@ export function getImageProvider(name: ProviderName): ImageProvider {
   return name === "openai" ? openaiImageProvider() : geminiImageProvider();
 }
 
-/** Provider order from IMAGE_PROVIDERS, e.g. "gemini,openai". */
-export function providerOrder(): ProviderName[] {
-  const order = env()
-    .IMAGE_PROVIDERS.split(",")
+/** Providers the seller can choose, in IMAGE_PROVIDERS order; only those with an API key (all in mock mode). */
+export function availableProviders(): ProviderName[] {
+  const e = env();
+  const order = e.IMAGE_PROVIDERS.split(",")
     .map((p) => p.trim())
     .filter((p): p is ProviderName => (PROVIDERS as readonly string[]).includes(p));
-  return order.length ? Array.from(new Set(order)) : ["gemini", "openai"];
+  const all = Array.from(new Set([...order, ...PROVIDERS]));
+  if (e.MOCK_AI) return all;
+  return all.filter((p) => (p === "openai" ? !!e.OPENAI_API_KEY : !!e.GEMINI_API_KEY));
 }
 
-export type ImagePlan = { mode: "dual" | "fallback"; providers: ProviderName[] };
-
-export function imagePlan(): ImagePlan {
-  return { mode: env().IMAGE_MODE, providers: providerOrder() };
+export function defaultProvider(): ProviderName {
+  return availableProviders()[0] ?? "gemini";
 }

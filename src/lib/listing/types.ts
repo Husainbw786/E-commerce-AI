@@ -25,7 +25,10 @@ export type ListingDTO = {
   sku: string | null;
   createdAt: string;
   images: ImageDTO[];
-  plan: { mode: "dual" | "fallback"; providers: ProviderName[] };
+  /** Model chosen at upload — the only one that runs automatically. */
+  provider: ProviderName;
+  /** Models with keys configured (for "Try with …"). */
+  availableProviders: ProviderName[];
 };
 
 export type ListingSummaryDTO = {

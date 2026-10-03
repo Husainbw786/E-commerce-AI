@@ -10,7 +10,7 @@ import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
 import { useToast } from "../toast";
 import { Button, Icon, StepsBar, Tag } from "../ui";
 import { ExportDialog } from "./export-dialog";
-import { ImageSlot } from "./image-slot";
+import { ImageSlot, PROVIDER_LABEL } from "./image-slot";
 import { ListingDetailsPanel } from "./listing-details";
 import { keyOf, latestImage, useImageOrchestrator } from "./use-image-orchestrator";
 
@@ -53,7 +53,7 @@ export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
   }
 
   // Progress over the images we expect to exist.
-  const expected = slots.flatMap((slot) => (listing.plan.mode === "dual" ? listing.plan.providers : [listing.plan.providers[0]]).map((p) => ({ slot, p })));
+  const expected = slots.map((slot) => ({ slot, p: listing.provider }));
   const finished = expected.filter(({ slot, p }) => {
     const img = latestImage(listing.images, slot, p);
     return !inflight.has(keyOf(slot, p)) && img && img.status !== "pending";
@@ -110,6 +110,7 @@ export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
                 {readySlots} of {slots.length} image{slots.length > 1 ? "s" : ""} ready
               </Tag>
               <Tag>Meesho</Tag>
+              <Tag>Images: {PROVIDER_LABEL[listing.provider]}</Tag>
               <Tag>{details.summary.category}</Tag>
               {details.summary.packQuantity > 1 && <Tag>Pack of {details.summary.packQuantity}</Tag>}
             </div>
