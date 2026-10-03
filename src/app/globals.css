@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* Listora design tokens (from docs/design-listora-studio.html) */
+@theme inline {
+  --font-sans: var(--font-archivo), system-ui, sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+
+  --color-paper: #f3f2f2;
+  --color-ink: #201e1d;
+  --color-ink-2: #444141;
+  --color-muted: #605d5d;
+  --color-faint: #9b9797;
+  --color-line: rgb(32 30 29 / 0.4);
+  --color-field: #eae9e9;
+  --color-chip: #eae7e7;
+  --color-track: #d7d3d3;
+
+  --color-accent: #ec3013;
+  --color-accent-hover: #dd2b0f;
+  --color-accent-strong: #ae1800;
+  --color-accent-soft: #fff2ef;
+  --color-accent-ink: #7c1405;
+  --color-accent-light: #ff9783;
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  a {
+    color: var(--color-accent-strong);
+    text-underline-offset: 3px;
+  }
+  a:hover {
+    color: var(--color-accent);
+  }
+
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: rgb(236 48 19 / 0.3);
+  }
+}
+
+.striped {
+  background: repeating-linear-gradient(135deg, #e3e1e1 0 6px, #efeeee 6px 12px);
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 48px 0;
+  }
+}
+.busy {
+  background: repeating-linear-gradient(135deg, #e3e1e1 0 12px, #efeeee 12px 24px);
+  background-size: 48px 48px;
+  animation: shimmer 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .busy {
+    animation: none;
+  }
+}

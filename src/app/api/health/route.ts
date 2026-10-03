@@ -1,0 +1,20 @@
+import { NextResponse } from "next/server";
+import { env } from "@/lib/env";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** Shows which services are configured (never the values). */
+export function GET() {
+  const e = env();
+  return NextResponse.json({
+    mockAi: e.MOCK_AI,
+    openai: !!e.OPENAI_API_KEY,
+    gemini: !!e.GEMINI_API_KEY,
+    database: e.DATABASE_URL ? "neon" : "local-pglite",
+    storage: e.BLOB_READ_WRITE_TOKEN ? "vercel-blob" : "local-files",
+    rateLimit: !!(e.UPSTASH_REDIS_REST_URL && e.UPSTASH_REDIS_REST_TOKEN),
+    models: { text: e.OPENAI_TEXT_MODEL, openaiImage: e.OPENAI_IMAGE_MODEL, geminiImage: e.GEMINI_IMAGE_MODEL },
+    imageMode: e.IMAGE_MODE,
+  });
+}
