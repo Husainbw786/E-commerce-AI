@@ -14,5 +14,5 @@ export const POST = handler(async (req: NextRequest) => {
   if (!body.sourceUrls.every(isStoredUrl)) throw new HttpError(400, "Please upload the photos first.");
   const limited = await checkRateLimit("listing", clientIp(req));
   if (limited) throw new HttpError(429, limited);
-  return NextResponse.json({ questions: await questionsFor(body) });
+  return NextResponse.json(await questionsFor(body));
 });

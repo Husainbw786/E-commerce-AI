@@ -39,6 +39,8 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
   const [askFirst, setAskFirst] = useState(true);
   const [form, setForm] = useState<QuestionsState>({ answers: {}, lifestyle: false, lifestyleScene: "", notes: "" });
   const [questions, setQuestions] = useState<SellerQuestions | null>(null);
+  // The questions AI call, so its cost is counted on the listing it leads to.
+  const [questionsUsageId, setQuestionsUsageId] = useState<string | null>(null);
   // Uploaded URLs for the current photo set, so "Back" and retries don't re-upload.
   const [uploaded, setUploaded] = useState<string[] | null>(null);
   const photosRef = useRef(photos);
@@ -128,8 +130,9 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
       const urls = await uploadAll();
       if (askFirst) {
         setStage("asking");
-        const q = await fetchQuestions(urls, form.notes);
+        const { questions: q, usageId } = await fetchQuestions(urls, form.notes);
         setQuestions(q);
+        setQuestionsUsageId(usageId);
         setForm((f) => ({ ...f, lifestyleScene: f.lifestyleScene || q.lifestyleScene }));
         setStage("idle");
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -158,6 +161,7 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
         answers,
         lifestyle: form.lifestyle,
         lifestyleScene: form.lifestyle ? form.lifestyleScene.trim() || undefined : undefined,
+        questionsUsageId: questions ? questionsUsageId ?? undefined : undefined,
       });
       router.push(`/listing/${listing.id}`);
     } catch (err) {

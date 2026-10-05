@@ -51,7 +51,13 @@ export function useImageOrchestrator(initial: ListingDTO) {
       const req: Inflight = { id: crypto.randomUUID(), slot, provider, adjust: opts.adjust?.trim() || undefined, edit: !!opts.baseImageId };
       setInflight((list) => [...list, req]);
       generateImage(listing.id, slot, provider, opts)
-        .then(mergeImage)
+        .then((img) => {
+          mergeImage(img);
+          // Pick up the new AI call in the cost totals.
+          fetchListing(listing.id)
+            .then((fresh) => setListing((l) => ({ ...l, usage: fresh.usage })))
+            .catch(() => {});
+        })
         .catch((err: Error) => toast(err.message))
         .finally(() => setInflight((list) => list.filter((r) => r.id !== req.id)));
     },

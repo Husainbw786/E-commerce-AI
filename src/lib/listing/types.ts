@@ -13,6 +13,22 @@ export type ImageDTO = {
   adjust: string | null;
   baseImageId: string | null;
   createdAt: string;
+  /** Sum of AI calls that produced this version (null if unpriced). */
+  costUsd: number | null;
+};
+
+export type UsageDTO = {
+  id: string;
+  purpose: "questions" | "listing" | "image" | "edit" | string;
+  provider: string;
+  model: string;
+  imageId: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  costUsd: number | null;
+  ms: number | null;
+  ok: boolean;
+  createdAt: string;
 };
 
 export type ListingDTO = {
@@ -36,6 +52,9 @@ export type ListingDTO = {
   provider: ProviderName;
   /** Models with keys configured (for "Try with …"). */
   availableProviders: ProviderName[];
+  /** Every AI call for this listing, including deleted image versions. */
+  usage: { totalUsd: number; events: UsageDTO[] };
+  usdToInr: number | null;
 };
 
 export type ListingSummaryDTO = {
@@ -46,4 +65,5 @@ export type ListingSummaryDTO = {
   status: ListingDTO["status"];
   createdAt: string;
   coverUrl: string | null;
+  costUsd: number;
 };

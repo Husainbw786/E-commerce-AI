@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, doublePrecision, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { ListingDetails, SellerAnswer } from "@/lib/listing/schema";
 
 export const listingStatus = pgEnum("listing_status", ["analysing", "ready", "failed"]);
@@ -58,17 +58,31 @@ export const listingImages = pgTable(
   (t) => [index("listing_image_listing_idx").on(t.listingId)],
 );
 
-export const usageEvents = pgTable("usage_event", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  listingId: uuid("listing_id").references(() => listings.id, { onDelete: "set null" }),
-  kind: usageKind("kind").notNull(),
-  provider: text("provider").notNull(),
-  model: text("model").notNull(),
-  usage: jsonb("usage"),
-  ms: integer("ms"),
-  ok: boolean("ok").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+/** One row per AI call (including failed ones). Cost is stored at call time. */
+export const usageEvents = pgTable(
+  "usage_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    listingId: uuid("listing_id").references(() => listings.id, { onDelete: "set null" }),
+    /** Image this call produced. Kept (set null) if the image version is deleted, so spend stays accurate. */
+    imageId: uuid("image_id").references(() => listingImages.id, { onDelete: "set null" }),
+    kind: usageKind("kind").notNull(),
+    /** questions | listing | image | edit */
+    purpose: text("purpose"),
+    provider: text("provider").notNull(),
+    model: text("model").notNull(),
+    usage: jsonb("usage"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    costUsd: doublePrecision("cost_usd"),
+    ms: integer("ms"),
+    ok: boolean("ok").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("usage_event_listing_idx").on(t.listingId)],
+);
+
+export type UsageEvent = typeof usageEvents.$inferSelect;
 
 export type Listing = typeof listings.$inferSelect;
 export type ListingImage = typeof listingImages.$inferSelect;

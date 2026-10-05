@@ -33,6 +33,9 @@ const schema = z.object({
   UPSTASH_REDIS_REST_URL: optional,
   UPSTASH_REDIS_REST_TOKEN: optional,
 
+  // Optional: show costs in rupees too (e.g. 88). Leave empty to show USD only.
+  USD_TO_INR: z.coerce.number().positive().optional().or(z.literal("").transform(() => undefined)),
+
   DAILY_LISTING_LIMIT: z.coerce.number().int().positive().default(20),
   DAILY_IMAGE_LIMIT: z.coerce.number().int().positive().default(150),
 });

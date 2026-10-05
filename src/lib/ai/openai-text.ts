@@ -45,13 +45,14 @@ export async function analyseProduct(photos: Buffer[], imageCount: number, ctx: 
   return { details: parsed, model, usage: response.usage ?? null };
 }
 
-export async function askQuestions(photos: Buffer[], notes?: string): Promise<{ questions: SellerQuestions; usage: unknown }> {
-  if (env().MOCK_AI) return { questions: mockQuestions(), usage: null };
+export async function askQuestions(photos: Buffer[], notes?: string): Promise<{ questions: SellerQuestions; model: string; usage: unknown }> {
+  if (env().MOCK_AI) return { questions: mockQuestions(), model: "mock", usage: null };
+  const model = env().OPENAI_QUESTIONS_MODEL ?? env().OPENAI_TEXT_MODEL;
   const text =
     `Here ${photos.length > 1 ? `are ${photos.length} photos of the same product` : "is the product photo"}.` +
     (notes?.trim() ? ` The seller already said: ${notes.trim()}` : "");
   const response = await openai().responses.parse({
-    model: env().OPENAI_QUESTIONS_MODEL ?? env().OPENAI_TEXT_MODEL,
+    model,
     instructions: QUESTIONS_SYSTEM_PROMPT,
     input: [{ role: "user", content: [{ type: "input_text", text }, ...imageInputs(photos)] }],
     text: { format: zodTextFormat(SellerQuestions, "questions") },
@@ -60,6 +61,7 @@ export async function askQuestions(photos: Buffer[], notes?: string): Promise<{ 
   const q = response.output_parsed;
   return {
     questions: { ...q, questions: q.questions.slice(0, 5).map((x) => ({ ...x, options: x.options.slice(0, 4) })) },
+    model,
     usage: response.usage ?? null,
   };
 }

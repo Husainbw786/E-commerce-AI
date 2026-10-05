@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { formatUsd } from "@/lib/ai/pricing";
 import { SLOT_INFO, type ProviderName, type Slot } from "@/lib/listing/schema";
 import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
 import { Button, Icon, inputClass } from "../ui";
@@ -167,7 +168,12 @@ function Version(props: {
       <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-[14px] font-extrabold">{PROVIDER_LABEL[img.provider]}</span>
-          <span className="truncate font-mono text-[11px] text-muted">{img.baseImageId ? "edited" : img.model}</span>
+          <span className="truncate font-mono text-[11px] text-muted" title={img.model}>
+            {img.baseImageId ? "edited" : img.model}
+            {img.status === "done" && img.costUsd !== null && (
+              <b className="ml-1.5 font-sans text-[12px] text-ink">{img.costUsd === 0 ? "free" : formatUsd(img.costUsd)}</b>
+            )}
+          </span>
         </div>
         {img.adjust && <div className="line-clamp-2 text-xs text-ink-2">“{img.adjust}”</div>}
         <div className="flex gap-2">

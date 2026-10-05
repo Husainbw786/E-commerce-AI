@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Icon, Tag } from "@/components/ui";
+import { formatUsd } from "@/lib/ai/pricing";
+import { env } from "@/lib/env";
 import { listListings } from "@/lib/listing/service";
 
 export const dynamic = "force-dynamic";
@@ -8,12 +10,19 @@ const dateFmt = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short
 
 export default async function LibraryPage() {
   const rows = await listListings();
+  const rate = env().USD_TO_INR ?? null;
+  const total = rows.reduce((s, r) => s + r.costUsd, 0);
   return (
     <main className="mx-auto max-w-[1240px] px-6 pb-14 pt-8">
       <div className="mb-6 flex flex-wrap items-end gap-4">
         <div className="mr-auto">
           <h1 className="m-0 mb-1.5 text-[clamp(28px,4.5vw,40px)] font-extrabold leading-[1.08] tracking-[-0.02em]">Library</h1>
           <p className="m-0 text-[15px] text-muted">Every product you&apos;ve generated. Open one to download or export again.</p>
+          {rows.length > 0 && (
+            <p className="m-0 mt-1 text-[13px] text-ink-2">
+              Total AI cost: <b>{formatUsd(total, rate)}</b> · average <b>{formatUsd(total / rows.length, rate)}</b> per listing
+            </p>
+          )}
         </div>
         <Link href="/" className="inline-flex items-center gap-2.5 bg-accent px-3.5 py-2.5 text-[13px] font-extrabold text-paper no-underline hover:bg-accent-hover hover:text-paper">
           New product <Icon name="plus" />
@@ -32,7 +41,7 @@ export default async function LibraryPage() {
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr>
-                {["Product", "Images", "Created", "Status", ""].map((h) => (
+                {["Product", "Images", "Created", "AI cost", "Status", ""].map((h) => (
                   <th key={h} className="border-b-2 border-line p-2 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
                     {h}
                   </th>
@@ -51,6 +60,7 @@ export default async function LibraryPage() {
                   </td>
                   <td className="border-b border-line px-2 py-3">{r.imageCount}</td>
                   <td className="border-b border-line px-2 py-3 text-muted">{dateFmt.format(new Date(r.createdAt))}</td>
+                  <td className="border-b border-line px-2 py-3 font-semibold">{formatUsd(r.costUsd, rate)}</td>
                   <td className="border-b border-line px-2 py-3">
                     <Tag tone={r.status === "ready" ? "accent" : "neutral"}>{r.status === "ready" ? "Ready" : r.status === "failed" ? "Failed" : "Analysing"}</Tag>
                   </td>

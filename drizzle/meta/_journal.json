@@ -29,6 +29,20 @@
       "when": 1791010428630,
       "tag": "0003_questions_lifestyle_versions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791177217547,
+      "tag": "0004_usage_costs",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791177218547,
+      "tag": "0005_fix_usage_image_links",
+      "breakpoints": true
     }
   ]
 }

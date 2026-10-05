@@ -49,6 +49,16 @@ test("upload → questions → listing → images, edit, versions → export", a
   await expect(primary.getByText("v3", { exact: true })).toHaveCount(0);
   await expect(primary.getByText("v2", { exact: true }).first()).toBeVisible();
 
+  // Every AI call is listed with its cost (mock AI = $0).
+  await expect(page.getByText(/AI cost: \$0/)).toBeVisible();
+  await page.getByRole("button", { name: "Show breakdown" }).click();
+  await expect(page.getByRole("cell", { name: "Questions before listing" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Listing details" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Image · Primary image v1" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Image · In use v1" })).toBeVisible();
+  // Zoom edits are done in code, not by AI — they don't appear as AI calls.
+  await expect(page.getByRole("cell", { name: /Image edit/ })).toHaveCount(0);
+
   await page.getByRole("button", { name: /Export listing/ }).click();
   await page.getByLabel("SKU / file prefix").fill("E2E-1");
   await expect(page.getByText("E2E-1_3_lifestyle.jpg")).toBeVisible();

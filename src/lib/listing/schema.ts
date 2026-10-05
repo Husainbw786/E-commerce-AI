@@ -97,6 +97,7 @@ export const CreateListingBody = z.object({
   answers: z.array(SellerAnswer).max(10).optional(),
   lifestyle: z.boolean().optional(),
   lifestyleScene: z.string().max(300).optional(),
+  questionsUsageId: z.string().uuid().optional(),
 });
 
 export const QuestionsBody = z.object({

@@ -30,6 +30,7 @@ export type CreateListingInput = {
   answers?: SellerAnswer[];
   lifestyle?: boolean;
   lifestyleScene?: string;
+  questionsUsageId?: string;
 };
 
 export async function createListing(input: CreateListingInput) {
@@ -37,7 +38,7 @@ export async function createListing(input: CreateListingInput) {
 }
 
 export async function fetchQuestions(sourceUrls: string[], notes?: string) {
-  return (await request<{ questions: SellerQuestions }>("/api/questions", json({ sourceUrls, notes: notes || undefined }))).questions;
+  return request<{ questions: SellerQuestions; usageId: string | null }>("/api/questions", json({ sourceUrls, notes: notes || undefined }));
 }
 
 export async function deleteImage(id: string, imageId: string) {

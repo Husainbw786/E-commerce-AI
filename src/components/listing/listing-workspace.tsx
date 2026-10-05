@@ -9,6 +9,8 @@ import { type ListingPatch } from "@/lib/listing/schema";
 import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
 import { useToast } from "../toast";
 import { Button, Icon, StepsBar, Tag, inputClass } from "../ui";
+import { formatUsd } from "@/lib/ai/pricing";
+import { CostPanel } from "./cost-panel";
 import { ExportDialog } from "./export-dialog";
 import { ImageSlot, PROVIDER_LABEL } from "./image-slot";
 import { ListingDetailsPanel } from "./listing-details";
@@ -124,6 +126,7 @@ export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
               <Tag>Images: {PROVIDER_LABEL[listing.provider]}</Tag>
               <Tag>{details.summary.category}</Tag>
               {details.summary.packQuantity > 1 && <Tag>Pack of {details.summary.packQuantity}</Tag>}
+              <Tag>AI cost: {formatUsd(listing.usage.totalUsd, listing.usdToInr)}</Tag>
             </div>
             <h1 className="m-0 text-[clamp(26px,4vw,38px)] font-extrabold leading-[1.1] tracking-[-0.02em] [text-wrap:pretty]">{details.title}</h1>
           </div>
@@ -216,6 +219,8 @@ export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
         </div>
 
         <ListingDetailsPanel details={details} onSave={save} />
+
+        <CostPanel listing={listing} />
 
         <div className="mt-12 flex justify-end border-t border-line pt-4">
           <Button variant="ghost" onClick={destroy}>

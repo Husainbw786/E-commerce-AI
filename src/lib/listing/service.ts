@@ -1,21 +1,44 @@
 import "server-only";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { analyseProduct, askQuestions } from "@/lib/ai/openai-text";
 import { buildEditPrompt, buildImagePrompt, zoomScaleFor } from "@/lib/ai/prompts";
+import { costOf } from "@/lib/ai/pricing";
 import { availableProviders, defaultProvider, getImageProvider } from "@/lib/ai/providers";
+import { env } from "@/lib/env";
 import { db, schema } from "@/lib/db";
-import type { Listing, ListingImage } from "@/lib/db/schema";
+import type { Listing, ListingImage, UsageEvent } from "@/lib/db/schema";
 import { HttpError, errorMessage } from "@/lib/http";
 import { normalizeListingImage, toAnalysisJpeg, zoomImage } from "@/lib/image/normalize";
 import { deleteFiles, readStoredFile, saveFile } from "@/lib/storage";
 import { postprocess } from "./postprocess";
 import { slotsFor, type ListingPatch, type ProviderName, type SellerAnswer, type SellerQuestions, type Slot } from "./schema";
-import type { ImageDTO, ListingDTO, ListingSummaryDTO } from "./types";
+import type { ImageDTO, ListingDTO, ListingSummaryDTO, UsageDTO } from "./types";
 
 const { listings, listingImages, usageEvents } = schema;
 const STALE_PENDING_MS = 5 * 60_000;
 
-function toImageDTO(img: ListingImage): ImageDTO {
+/** Rows written before cost tracking have no cost_usd — price them from the raw usage. */
+function toUsageDTO(e: UsageEvent): UsageDTO {
+  const priced = e.costUsd === null && e.usage && e.ok ? costOf(e.model, e.usage) : null;
+  return {
+    id: e.id,
+    purpose: e.purpose ?? e.kind,
+    provider: e.provider,
+    model: e.model,
+    imageId: e.imageId,
+    inputTokens: e.inputTokens ?? priced?.inputTokens ?? null,
+    outputTokens: e.outputTokens ?? priced?.outputTokens ?? null,
+    costUsd: e.costUsd ?? priced?.costUsd ?? (e.ok ? null : 0),
+    ms: e.ms,
+    ok: e.ok,
+    createdAt: e.createdAt.toISOString(),
+  };
+}
+
+const sumCost = (events: UsageDTO[]) => events.reduce((s, e) => s + (e.costUsd ?? 0), 0);
+
+function toImageDTO(img: ListingImage, usage: UsageDTO[] = []): ImageDTO {
+  const mine = usage.filter((u) => u.imageId === img.id);
   const stale = img.status === "pending" && Date.now() - img.createdAt.getTime() > STALE_PENDING_MS;
   return {
     id: img.id,
@@ -29,6 +52,7 @@ function toImageDTO(img: ListingImage): ImageDTO {
     adjust: img.adjust,
     baseImageId: img.baseImageId,
     createdAt: img.createdAt.toISOString(),
+    costUsd: mine.length ? sumCost(mine) : img.baseImageId && img.status === "done" ? 0 : null,
   };
 }
 
@@ -45,7 +69,8 @@ async function readSources(listing: Listing): Promise<Buffer[]> {
   return Promise.all(sourcesOf(listing).map(readStoredFile));
 }
 
-function toDTO(listing: Listing, images: ListingImage[]): ListingDTO {
+function toDTO(listing: Listing, images: ListingImage[], usageRows: UsageEvent[]): ListingDTO {
+  const usage = usageRows.map(toUsageDTO);
   return {
     id: listing.id,
     sourceUrl: listing.sourceUrl,
@@ -61,17 +86,28 @@ function toDTO(listing: Listing, images: ListingImage[]): ListingDTO {
     error: listing.error,
     sku: listing.sku,
     createdAt: listing.createdAt.toISOString(),
-    images: images.map(toImageDTO),
+    images: images.map((img) => toImageDTO(img, usage)),
+    usage: { totalUsd: sumCost(usage), events: usage },
+    usdToInr: env().USD_TO_INR ?? null,
     provider: listing.imageProvider ?? defaultProvider(),
     availableProviders: availableProviders(),
   };
 }
 
-async function recordUsage(e: typeof usageEvents.$inferInsert) {
+type UsageInput = Omit<typeof usageEvents.$inferInsert, "inputTokens" | "outputTokens" | "costUsd">;
+
+/** Saves one AI call with its tokens and USD cost. Never throws — a failed log must not fail the request. */
+async function recordUsage(e: UsageInput): Promise<string | null> {
   try {
-    await (await db()).insert(usageEvents).values(e);
+    const c = e.ok && e.usage ? costOf(e.model, e.usage) : { inputTokens: 0, outputTokens: 0, costUsd: e.ok ? null : 0 };
+    const [row] = await (await db())
+      .insert(usageEvents)
+      .values({ ...e, inputTokens: c.inputTokens, outputTokens: c.outputTokens, costUsd: e.model === "mock" ? 0 : c.costUsd })
+      .returning({ id: usageEvents.id });
+    return row.id;
   } catch (err) {
     console.error("[usage] failed to record", err);
+    return null;
   }
 }
 
@@ -86,22 +122,27 @@ async function findListing(id: string): Promise<Listing> {
 
 export async function getListing(id: string): Promise<ListingDTO> {
   const listing = await findListing(id);
-  const images = await (await db())
-    .select()
-    .from(listingImages)
-    .where(eq(listingImages.listingId, id))
-    .orderBy(listingImages.createdAt);
-  return toDTO(listing, images);
+  const d = await db();
+  const [images, usage] = await Promise.all([
+    d.select().from(listingImages).where(eq(listingImages.listingId, id)).orderBy(listingImages.createdAt),
+    d.select().from(usageEvents).where(eq(usageEvents.listingId, id)).orderBy(usageEvents.createdAt),
+  ]);
+  return toDTO(listing, images, usage);
 }
 
 export async function listListings(limit = 100): Promise<ListingSummaryDTO[]> {
   const d = await db();
   const rows = await d.select().from(listings).orderBy(desc(listings.createdAt)).limit(limit);
   if (!rows.length) return [];
-  const imgs = await d
-    .select()
-    .from(listingImages)
-    .where(and(inArray(listingImages.listingId, rows.map((r) => r.id)), eq(listingImages.status, "done")));
+  const ids = rows.map((r) => r.id);
+  const [imgs, usage] = await Promise.all([
+    d.select().from(listingImages).where(and(inArray(listingImages.listingId, ids), eq(listingImages.status, "done"))),
+    d.select().from(usageEvents).where(inArray(usageEvents.listingId, ids)),
+  ]);
+  const costByListing = new Map<string, number>();
+  for (const u of usage.map((e) => ({ listingId: e.listingId, ...toUsageDTO(e) }))) {
+    if (u.listingId) costByListing.set(u.listingId, (costByListing.get(u.listingId) ?? 0) + (u.costUsd ?? 0));
+  }
   return rows.map((r) => {
     const mine = imgs.filter((i) => i.listingId === r.id && i.slot === "primary");
     const cover = mine.find((i) => i.selected) ?? mine[0];
@@ -113,6 +154,7 @@ export async function listListings(limit = 100): Promise<ListingSummaryDTO[]> {
       status: r.status,
       createdAt: r.createdAt.toISOString(),
       coverUrl: cover?.url ?? null,
+      costUsd: costByListing.get(r.id) ?? 0,
     };
   });
 }
@@ -124,16 +166,18 @@ async function readUploads(urls: string[]): Promise<Buffer[]> {
 }
 
 /** Optional step 0: let the AI look at the photos and ask the seller a few questions. */
-export async function questionsFor(input: { sourceUrls: string[]; notes?: string }): Promise<SellerQuestions> {
+export async function questionsFor(input: { sourceUrls: string[]; notes?: string }): Promise<{ questions: SellerQuestions; usageId: string | null }> {
   const photos = await readUploads(Array.from(new Set(input.sourceUrls)));
   const started = Date.now();
+  const model = env().OPENAI_QUESTIONS_MODEL ?? env().OPENAI_TEXT_MODEL;
   try {
-    const { questions, usage } = await askQuestions(await Promise.all(photos.map(toAnalysisJpeg)), input.notes);
-    await recordUsage({ kind: "text", provider: "openai", model: "questions", usage, ms: Date.now() - started, ok: true });
-    return questions;
+    const result = await askQuestions(await Promise.all(photos.map(toAnalysisJpeg)), input.notes);
+    // No listing yet — it gets linked when the seller continues (createListing).
+    const usageId = await recordUsage({ kind: "text", purpose: "questions", provider: "openai", model: result.model, usage: result.usage, ms: Date.now() - started, ok: true });
+    return { questions: result.questions, usageId };
   } catch (err) {
     console.error("[questions]", err);
-    await recordUsage({ kind: "text", provider: "openai", model: "questions", usage: { error: errorMessage(err) }, ms: Date.now() - started, ok: false });
+    await recordUsage({ kind: "text", purpose: "questions", provider: "openai", model, usage: { error: errorMessage(err) }, ms: Date.now() - started, ok: false });
     throw new HttpError(502, "Couldn't prepare questions. You can skip them and generate directly.");
   }
 }
@@ -148,6 +192,7 @@ export async function createListing(input: {
   answers?: SellerAnswer[];
   lifestyle?: boolean;
   lifestyleScene?: string;
+  questionsUsageId?: string;
 }): Promise<ListingDTO> {
   if (!availableProviders().includes(input.provider)) throw new HttpError(400, "That image model is not set up.");
   const d = await db();
@@ -171,6 +216,13 @@ export async function createListing(input: {
     })
     .returning();
 
+  if (input.questionsUsageId && UUID.test(input.questionsUsageId)) {
+    await d
+      .update(usageEvents)
+      .set({ listingId: row.id })
+      .where(and(eq(usageEvents.id, input.questionsUsageId), isNull(usageEvents.listingId)));
+  }
+
   const started = Date.now();
   try {
     const result = await analyseProduct(await Promise.all(photos.map(toAnalysisJpeg)), input.imageCount, ctx);
@@ -179,14 +231,14 @@ export async function createListing(input: {
       .update(listings)
       .set({ status: "ready", details, textModel: result.model, updatedAt: new Date() })
       .where(eq(listings.id, row.id));
-    await recordUsage({ listingId: row.id, kind: "text", provider: "openai", model: result.model, usage: result.usage, ms: Date.now() - started, ok: true });
+    await recordUsage({ listingId: row.id, kind: "text", purpose: "listing", provider: "openai", model: result.model, usage: result.usage, ms: Date.now() - started, ok: true });
   } catch (err) {
     console.error("[analyse]", err);
     await d
       .update(listings)
       .set({ status: "failed", error: "Could not read this photo. Try a clearer photo with one product in frame.", updatedAt: new Date() })
       .where(eq(listings.id, row.id));
-    await recordUsage({ listingId: row.id, kind: "text", provider: "openai", model: "unknown", usage: { error: errorMessage(err) }, ms: Date.now() - started, ok: false });
+    await recordUsage({ listingId: row.id, kind: "text", purpose: "listing", provider: "openai", model: env().OPENAI_TEXT_MODEL, usage: { error: errorMessage(err) }, ms: Date.now() - started, ok: false });
   }
   return getListing(row.id);
 }
@@ -330,8 +382,18 @@ export async function generateImage(input: {
       .set({ status: "done", url, selected: picked.length === 0 })
       .where(eq(listingImages.id, row.id))
       .returning();
-    await recordUsage({ listingId: listing.id, kind: "image", provider: provider.name, model: provider.model, usage: result.usage, ms: Date.now() - started, ok: true });
-    return toImageDTO(updated);
+    const usageId = await recordUsage({
+      listingId: listing.id,
+      imageId: row.id,
+      kind: "image",
+      purpose: base ? "edit" : "image",
+      provider: provider.name,
+      model: provider.model,
+      usage: result.usage,
+      ms: Date.now() - started,
+      ok: true,
+    });
+    return imageWithCost(updated, usageId);
   } catch (err) {
     console.error(`[image:${provider.name}]`, err);
     const [failed] = await d
@@ -339,7 +401,17 @@ export async function generateImage(input: {
       .set({ status: "failed", error: friendlyImageError(err) })
       .where(eq(listingImages.id, row.id))
       .returning();
-    await recordUsage({ listingId: listing.id, kind: "image", provider: provider.name, model: provider.model, usage: { error: errorMessage(err) }, ms: Date.now() - started, ok: false });
+    await recordUsage({
+      listingId: listing.id,
+      imageId: row.id,
+      kind: "image",
+      purpose: base ? "edit" : "image",
+      provider: provider.name,
+      model: provider.model,
+      usage: { error: errorMessage(err) },
+      ms: Date.now() - started,
+      ok: false,
+    });
     return toImageDTO(failed);
   }
 }
@@ -359,6 +431,12 @@ export async function selectImage(listingId: string, imageId: string): Promise<L
     .where(and(eq(listingImages.listingId, listingId), eq(listingImages.slot, img.slot)));
   await d.update(listingImages).set({ selected: true }).where(eq(listingImages.id, imageId));
   return getListing(listingId);
+}
+
+async function imageWithCost(img: ListingImage, usageId: string | null): Promise<ImageDTO> {
+  if (!usageId) return toImageDTO(img);
+  const [row] = await (await db()).select().from(usageEvents).where(eq(usageEvents.id, usageId)).limit(1);
+  return toImageDTO(img, row ? [toUsageDTO(row)] : []);
 }
 
 /** Remove one version. If it was the pick, the newest remaining finished version becomes the pick. */
