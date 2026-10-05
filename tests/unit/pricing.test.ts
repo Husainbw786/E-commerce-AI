@@ -3,14 +3,14 @@ import { costOf, formatUsd } from "@/lib/ai/pricing";
 
 // Real usage payloads recorded from the providers.
 describe("costOf", () => {
-  it("prices a GPT-6 Astra listing call with cache writes", () => {
-    const c = costOf("gpt-6-astra", {
+  it("prices a GPT-6.1 Sol listing call with cache writes", () => {
+    const c = costOf("gpt-6.1-sol", {
       input_tokens: 4226,
       output_tokens: 3038,
       input_tokens_details: { cached_tokens: 0, cache_write_tokens: 4223 },
     });
-    // 3×$10 + 4223×$12.50 + 3038×$50 per 1M
-    expect(c.costUsd).toBeCloseTo((3 * 10 + 4223 * 12.5 + 3038 * 50) / 1e6, 8);
+    // 3×$2 + 4223×$2.50 + 3038×$10 per 1M
+    expect(c.costUsd).toBeCloseTo((3 * 2 + 4223 * 2.5 + 3038 * 10) / 1e6, 8);
     expect(c).toMatchObject({ inputTokens: 4226, outputTokens: 3038 });
   });
 
@@ -36,7 +36,8 @@ describe("costOf", () => {
 
   it("returns null cost for unknown models and zero for no usage", () => {
     expect(costOf("some-new-model", { input_tokens: 10, output_tokens: 5 }).costUsd).toBeNull();
-    expect(costOf("gpt-6-astra", null).costUsd).toBe(0);
+    expect(costOf("gpt-6.1-sol", null).costUsd).toBe(0);
+    expect(costOf("gpt-6-astra", { input_tokens: 10 }).costUsd).toBeNull(); // removed; past rows keep their stored cost
   });
 
   it("accepts dated snapshots", () => {
