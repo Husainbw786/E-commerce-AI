@@ -43,6 +43,13 @@
       "when": 1791177218547,
       "tag": "0005_fix_usage_image_links",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791178078702,
+      "tag": "0006_image_model",
+      "breakpoints": true
     }
   ]
 }

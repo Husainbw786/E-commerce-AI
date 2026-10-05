@@ -12,8 +12,18 @@ type Rates = TextRates | OpenAIImageRates | GeminiRates;
 
 export const PRICES: Record<string, Rates> = {
   "gpt-6-astra": { kind: "openai-text", input: 10, cachedInput: 1, cacheWrite: 12.5, output: 50, longContextAt: 272_000 },
+  // OpenAI image models
+  "gpt-image-2.5-sunburst": { kind: "openai-image", textInput: 5, imageInput: 8, imageOutput: 30, textOutput: 0 },
   "gpt-image-2.5-flare": { kind: "openai-image", textInput: 5, imageInput: 8, imageOutput: 30, textOutput: 0 },
+  "gpt-image-2": { kind: "openai-image", textInput: 5, imageInput: 8, imageOutput: 30, textOutput: 0 },
+  "gpt-image-1.5": { kind: "openai-image", textInput: 5, imageInput: 8, imageOutput: 32, textOutput: 10 },
+  "gpt-image-1": { kind: "openai-image", textInput: 5, imageInput: 10, imageOutput: 40, textOutput: 0 },
+  "gpt-image-1-mini": { kind: "openai-image", textInput: 2, imageInput: 2.5, imageOutput: 8, textOutput: 0 },
+  "chatgpt-image-latest": { kind: "openai-image", textInput: 5, imageInput: 8, imageOutput: 32, textOutput: 10 },
+  // Gemini image models
+  "gemini-3-pro-image": { kind: "gemini", input: 2, textOutput: 12, imageOutput: 120 },
   "gemini-3.1-flash-image": { kind: "gemini", input: 0.5, textOutput: 3, imageOutput: 60 },
+  "gemini-3.1-flash-lite-image": { kind: "gemini", input: 0.25, textOutput: 1.5, imageOutput: 30 },
 };
 
 export type UsageCost = { inputTokens: number; outputTokens: number; costUsd: number | null };

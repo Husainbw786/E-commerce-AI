@@ -17,6 +17,18 @@ export type ImageDTO = {
   costUsd: number | null;
 };
 
+export type ModelOptionDTO = {
+  id: string;
+  provider: ProviderName;
+  label: string;
+  blurb: string;
+  /** Typical cost of one image: official price (Gemini) or the average of the seller's own images. */
+  estimateUsd: number | null;
+  estimateSource: "official" | "yours" | null;
+  /** Average generation time from the seller's own images. */
+  avgSeconds: number | null;
+};
+
 export type UsageDTO = {
   id: string;
   purpose: "questions" | "listing" | "image" | "edit" | string;
@@ -48,10 +60,10 @@ export type ListingDTO = {
   sku: string | null;
   createdAt: string;
   images: ImageDTO[];
-  /** Model chosen at upload — the only one that runs automatically. */
-  provider: ProviderName;
-  /** Models with keys configured (for "Try with …"). */
-  availableProviders: ProviderName[];
+  /** Image model chosen at upload — the only one that runs automatically. */
+  imageModel: string;
+  /** Models the seller can pick from for new versions. */
+  models: ModelOptionDTO[];
   /** Every AI call for this listing, including deleted image versions. */
   usage: { totalUsd: number; events: UsageDTO[] };
   usdToInr: number | null;

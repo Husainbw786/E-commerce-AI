@@ -92,7 +92,8 @@ export type SellerAnswer = z.infer<typeof SellerAnswer>;
 export const CreateListingBody = z.object({
   sourceUrls: z.array(z.string().min(1).max(2000)).min(1).max(MAX_SOURCE_PHOTOS),
   imageCount: z.number().int().min(1).max(3),
-  provider: z.enum(PROVIDERS),
+  /** Image model id, e.g. "gemini-3.1-flash-image". */
+  model: z.string().min(1).max(80),
   notes: z.string().max(1000).optional(),
   answers: z.array(SellerAnswer).max(10).optional(),
   lifestyle: z.boolean().optional(),
@@ -123,7 +124,7 @@ export type SellerQuestions = z.infer<typeof SellerQuestions>;
 
 export const GenerateImageBody = z.object({
   slot: z.enum(SLOTS),
-  provider: z.enum(PROVIDERS),
+  model: z.string().min(1).max(80),
   adjust: z.string().max(300).optional(),
   /** Edit this existing image instead of generating from the original photos. */
   baseImageId: z.string().uuid().optional(),

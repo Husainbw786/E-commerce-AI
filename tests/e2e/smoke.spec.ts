@@ -10,7 +10,10 @@ test("upload → questions → listing → images, edit, versions → export", a
   await page.locator('input[type="file"]').last().setInputFiles(path.join(__dirname, "fixtures/product-angle.jpg"));
   await expect(page.getByText("2 of 4")).toBeVisible();
   await page.getByRole("radio", { name: "2 images" }).click();
-  await page.getByRole("radio", { name: /OpenAI/ }).click();
+  // All 10 image models are offered; pick a specific one.
+  await expect(page.getByRole("radio", { name: /Nano Banana Pro/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /GPT Image 1 Mini/ })).toBeVisible();
+  await page.getByRole("radio", { name: /GPT Image 2\.5 Flare/ }).click();
   await page.getByLabel("Anything the AI should know? (optional)").fill("Sold in blue and black");
 
   // "Ask me questions first" is on by default.
@@ -26,7 +29,16 @@ test("upload → questions → listing → images, edit, versions → export", a
   await expect(page.getByRole("heading", { name: "In use" })).toBeVisible();
   // 2 picked + 1 in-use image, chosen model only.
   await expect(page.getByText("3 of 3 images ready")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("Images: OpenAI")).toBeVisible();
+  await expect(page.getByText("Images: GPT Image 2.5 Flare")).toBeVisible();
+
+  // A fresh version of the primary image with a different model.
+  const primarySlot = page.locator("section", { has: page.getByRole("heading", { name: "Primary image" }) });
+  await primarySlot.getByLabel("Or make a fresh version with").selectOption("gemini-3-pro-image");
+  await primarySlot.getByRole("button", { name: "New version" }).click();
+  await expect(primarySlot.getByText("Nano Banana Pro", { exact: true })).toBeVisible({ timeout: 30_000 });
+  page.once("dialog", (d) => d.accept());
+  await primarySlot.getByRole("button", { name: "Delete version 2" }).click();
+  await expect(primarySlot.getByText("v2", { exact: true })).toHaveCount(0);
 
   // Edit the primary image: the original stays, a v2 appears.
   const primary = page.locator("section", { has: page.getByRole("heading", { name: "Primary image" }) });

@@ -1,6 +1,7 @@
 import "server-only";
 import { GoogleGenAI, Modality } from "@google/genai";
-import { env, requireKey } from "@/lib/env";
+import { requireKey } from "@/lib/env";
+import { findImageModel } from "../models";
 import type { ImageProvider } from "./types";
 
 let client: GoogleGenAI | undefined;
@@ -9,8 +10,8 @@ function gemini() {
   return client;
 }
 
-export function geminiImageProvider(): ImageProvider {
-  const model = env().GEMINI_IMAGE_MODEL;
+export function geminiImageProvider(model: string): ImageProvider {
+  const imageSize = findImageModel(model)?.imageSize ?? null;
   return {
     name: "gemini",
     model,
@@ -28,7 +29,7 @@ export function geminiImageProvider(): ImageProvider {
         ],
         config: {
           responseModalities: [Modality.IMAGE],
-          imageConfig: { aspectRatio: "1:1", imageSize: "2K" },
+          imageConfig: { aspectRatio: "1:1", ...(imageSize ? { imageSize } : {}) },
         },
       });
 

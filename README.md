@@ -3,7 +3,7 @@
 Upload 1–4 photos of a product → get 1–3 Meesho-ready images and every listing field, ready to copy.
 
 - **Listing details** — OpenAI (`gpt-6-astra`, Structured Outputs) reads the photo and fills title, description, Meesho fields, measurements and keywords. Rules come from [`docs/MEESHO_PRODUCT_LISTING_SKILL.md`](docs/MEESHO_PRODUCT_LISTING_SKILL.md).
-- **Images** — the seller picks one image model at upload: Gemini (`gemini-3.1-flash-image`, Nano Banana 2) or OpenAI (`gpt-image-2.5-flare`). Only that model runs; any single image can be retried with the other model.
+- **Images** — the seller picks any of 10 image models at upload (Gemini Nano Banana Pro / 2 / 2 Lite; OpenAI GPT Image 2.5 Sunburst / 2.5 Flare / 2 / 1.5 / 1 / 1 Mini / ChatGPT Image). Only that model runs; any image can get extra versions from any other model. The model list is in `src/lib/ai/models.ts`, prices in `src/lib/ai/pricing.ts`.
 - **Export** — ZIP with the chosen images (1500×1500 JPG, white background) + `listing.txt`.
 
 Plan: [`docs/PLAN.md`](docs/PLAN.md) · Design: [`docs/design-listora-studio.html`](docs/design-listora-studio.html)
@@ -56,7 +56,7 @@ browser ── compress photo ──► POST /api/upload            → Blob
         ──────────────────► GET  /api/listings/:id/export → ZIP
 ```
 
-One request per image keeps every call short and shows images as they finish. `IMAGE_PROVIDERS` sets the picker order; only models with an API key are offered.
+One request per image keeps every call short and shows images as they finish. `DEFAULT_IMAGE_MODEL` sets the pre-selected model; only models whose provider has an API key are offered.
 
 | Path | Purpose |
 |---|---|

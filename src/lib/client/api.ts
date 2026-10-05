@@ -1,4 +1,4 @@
-import type { ListingPatch, ProviderName, SellerAnswer, SellerQuestions, Slot } from "@/lib/listing/schema";
+import type { ListingPatch, SellerAnswer, SellerQuestions, Slot } from "@/lib/listing/schema";
 import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -25,7 +25,7 @@ export async function uploadPhoto(file: Blob, name: string): Promise<string> {
 export type CreateListingInput = {
   sourceUrls: string[];
   imageCount: number;
-  provider: ProviderName;
+  model: string;
   notes?: string;
   answers?: SellerAnswer[];
   lifestyle?: boolean;
@@ -57,11 +57,11 @@ export async function removeListing(id: string) {
   await request<void>(`/api/listings/${id}`, { method: "DELETE" });
 }
 
-export async function generateImage(id: string, slot: Slot, provider: ProviderName, opts: { adjust?: string; baseImageId?: string } = {}) {
+export async function generateImage(id: string, slot: Slot, model: string, opts: { adjust?: string; baseImageId?: string } = {}) {
   return (
     await request<{ image: ImageDTO }>(
       `/api/listings/${id}/images`,
-      json({ slot, provider, adjust: opts.adjust?.trim() || undefined, baseImageId: opts.baseImageId }),
+      json({ slot, model, adjust: opts.adjust?.trim() || undefined, baseImageId: opts.baseImageId }),
     )
   ).image;
 }

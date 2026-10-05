@@ -12,7 +12,8 @@ import { Button, Icon, StepsBar, Tag, inputClass } from "../ui";
 import { formatUsd } from "@/lib/ai/pricing";
 import { CostPanel } from "./cost-panel";
 import { ExportDialog } from "./export-dialog";
-import { ImageSlot, PROVIDER_LABEL } from "./image-slot";
+import { modelLabel } from "@/lib/ai/models";
+import { ImageSlot } from "./image-slot";
 import { ListingDetailsPanel } from "./listing-details";
 import { latestImage, useImageOrchestrator } from "./use-image-orchestrator";
 
@@ -56,7 +57,7 @@ export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
   }
 
   // Progress over the images we expect to exist.
-  const expected = slots.map((slot) => ({ slot, p: listing.provider }));
+  const expected = slots.map((slot) => ({ slot, p: listing.imageModel }));
   const finished = expected.filter(({ slot, p }) => {
     const img = latestImage(listing.images, slot, p);
     return !inflight.some((r) => r.slot === slot) && img && img.status !== "pending";
@@ -123,7 +124,7 @@ export function ListingWorkspace({ initial }: { initial: ListingDTO }) {
                 {readySlots} of {slots.length} image{slots.length > 1 ? "s" : ""} ready
               </Tag>
               <Tag>Meesho</Tag>
-              <Tag>Images: {PROVIDER_LABEL[listing.provider]}</Tag>
+              <Tag>Images: {modelLabel(listing.imageModel)}</Tag>
               <Tag>{details.summary.category}</Tag>
               {details.summary.packQuantity > 1 && <Tag>Pack of {details.summary.packQuantity}</Tag>}
               <Tag>AI cost: {formatUsd(listing.usage.totalUsd, listing.usdToInr)}</Tag>

@@ -3,7 +3,9 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { analyseProduct, askQuestions } from "@/lib/ai/openai-text";
 import { buildEditPrompt, buildImagePrompt, zoomScaleFor } from "@/lib/ai/prompts";
 import { costOf } from "@/lib/ai/pricing";
-import { availableProviders, defaultProvider, getImageProvider } from "@/lib/ai/providers";
+import { findImageModel, legacyModelFor } from "@/lib/ai/models";
+import { getImageProvider, isAvailableModel } from "@/lib/ai/providers";
+import { modelOptions } from "./models-service";
 import { env } from "@/lib/env";
 import { db, schema } from "@/lib/db";
 import type { Listing, ListingImage, UsageEvent } from "@/lib/db/schema";
@@ -11,7 +13,7 @@ import { HttpError, errorMessage } from "@/lib/http";
 import { normalizeListingImage, toAnalysisJpeg, zoomImage } from "@/lib/image/normalize";
 import { deleteFiles, readStoredFile, saveFile } from "@/lib/storage";
 import { postprocess } from "./postprocess";
-import { slotsFor, type ListingPatch, type ProviderName, type SellerAnswer, type SellerQuestions, type Slot } from "./schema";
+import { slotsFor, type ListingPatch, type SellerAnswer, type SellerQuestions, type Slot } from "./schema";
 import type { ImageDTO, ListingDTO, ListingSummaryDTO, UsageDTO } from "./types";
 
 const { listings, listingImages, usageEvents } = schema;
@@ -69,7 +71,7 @@ async function readSources(listing: Listing): Promise<Buffer[]> {
   return Promise.all(sourcesOf(listing).map(readStoredFile));
 }
 
-function toDTO(listing: Listing, images: ListingImage[], usageRows: UsageEvent[]): ListingDTO {
+function toDTO(listing: Listing, images: ListingImage[], usageRows: UsageEvent[], models: ListingDTO["models"]): ListingDTO {
   const usage = usageRows.map(toUsageDTO);
   return {
     id: listing.id,
@@ -89,8 +91,8 @@ function toDTO(listing: Listing, images: ListingImage[], usageRows: UsageEvent[]
     images: images.map((img) => toImageDTO(img, usage)),
     usage: { totalUsd: sumCost(usage), events: usage },
     usdToInr: env().USD_TO_INR ?? null,
-    provider: listing.imageProvider ?? defaultProvider(),
-    availableProviders: availableProviders(),
+    imageModel: listing.imageModel ?? legacyModelFor(listing.imageProvider),
+    models,
   };
 }
 
@@ -123,11 +125,12 @@ async function findListing(id: string): Promise<Listing> {
 export async function getListing(id: string): Promise<ListingDTO> {
   const listing = await findListing(id);
   const d = await db();
-  const [images, usage] = await Promise.all([
+  const [images, usage, models] = await Promise.all([
     d.select().from(listingImages).where(eq(listingImages.listingId, id)).orderBy(listingImages.createdAt),
     d.select().from(usageEvents).where(eq(usageEvents.listingId, id)).orderBy(usageEvents.createdAt),
+    modelOptions(),
   ]);
-  return toDTO(listing, images, usage);
+  return toDTO(listing, images, usage, models);
 }
 
 export async function listListings(limit = 100): Promise<ListingSummaryDTO[]> {
@@ -186,7 +189,7 @@ export async function questionsFor(input: { sourceUrls: string[]; notes?: string
 export async function createListing(input: {
   sourceUrls: string[];
   imageCount: number;
-  provider: ProviderName;
+  model: string;
   clientIp: string;
   notes?: string;
   answers?: SellerAnswer[];
@@ -194,7 +197,8 @@ export async function createListing(input: {
   lifestyleScene?: string;
   questionsUsageId?: string;
 }): Promise<ListingDTO> {
-  if (!availableProviders().includes(input.provider)) throw new HttpError(400, "That image model is not set up.");
+  const modelInfo = findImageModel(input.model);
+  if (!modelInfo || !isAvailableModel(input.model)) throw new HttpError(400, "That image model is not available.");
   const d = await db();
   const sourceUrls = Array.from(new Set(input.sourceUrls));
   const photos = await readUploads(sourceUrls);
@@ -207,7 +211,8 @@ export async function createListing(input: {
       sourceUrl: sourceUrls[0],
       sourceUrls,
       imageCount: input.imageCount,
-      imageProvider: input.provider,
+      imageProvider: modelInfo.provider,
+      imageModel: modelInfo.id,
       lifestyle: !!input.lifestyle,
       lifestyleScene: ctx.lifestyleScene,
       sellerNotes: ctx.notes,
@@ -296,14 +301,14 @@ function friendlyImageError(err: unknown): string {
 export async function generateImage(input: {
   listingId: string;
   slot: Slot;
-  provider: ProviderName;
+  model: string;
   adjust?: string;
   baseImageId?: string;
 }): Promise<ImageDTO> {
   const listing = await findListing(input.listingId);
   if (listing.status !== "ready" || !listing.details) throw new HttpError(409, "Listing details are not ready yet");
   if (!listingSlots(listing).includes(input.slot)) throw new HttpError(400, "This listing does not include that image");
-  if (!availableProviders().includes(input.provider)) throw new HttpError(400, "That image model is not set up.");
+  if (!isAvailableModel(input.model)) throw new HttpError(400, "That image model is not available.");
 
   const d = await db();
   let base: ListingImage | undefined;
@@ -339,7 +344,7 @@ export async function generateImage(input: {
     return toImageDTO(row);
   }
 
-  const provider = getImageProvider(input.provider);
+  const provider = getImageProvider(input.model);
   const prompt = base
     ? buildEditPrompt(input.slot, input.adjust!)
     : buildImagePrompt(listing.details, input.slot, input.adjust, listing.lifestyleScene);

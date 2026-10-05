@@ -12,11 +12,10 @@ const schema = z.object({
   OPENAI_TEXT_MODEL: z.string().default("gpt-6-astra"),
   // Optional cheaper/faster model for the pre-listing questions. Falls back to OPENAI_TEXT_MODEL.
   OPENAI_QUESTIONS_MODEL: optional,
-  OPENAI_IMAGE_MODEL: z.string().default("gpt-image-2.5-flare"),
+
   OPENAI_IMAGE_QUALITY: z.enum(["low", "medium", "high", "xhigh", "max", "auto"]).default("high"),
-  GEMINI_IMAGE_MODEL: z.string().default("gemini-3.1-flash-image"),
-  // Order of image models in the picker; the first available one is the default.
-  IMAGE_PROVIDERS: z.string().default("gemini,openai"),
+  // Model pre-selected in the picker (any id from src/lib/ai/models.ts).
+  DEFAULT_IMAGE_MODEL: optional,
   MOCK_AI: z
     .string()
     .optional()

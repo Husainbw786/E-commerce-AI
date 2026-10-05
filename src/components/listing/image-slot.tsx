@@ -2,8 +2,10 @@
 
 import { useRef, useState } from "react";
 import { formatUsd } from "@/lib/ai/pricing";
+import { modelLabel } from "@/lib/ai/models";
 import { SLOT_INFO, type ProviderName, type Slot } from "@/lib/listing/schema";
 import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
+import { ModelSelect } from "../model-picker";
 import { Button, Icon, inputClass } from "../ui";
 import { pickedImage, type Inflight } from "./use-image-orchestrator";
 
@@ -14,7 +16,7 @@ type Props = {
   slot: Slot;
   index: number;
   inflight: Inflight[];
-  onGenerate: (slot: Slot, provider: ProviderName, opts?: { adjust?: string; baseImageId?: string }) => void;
+  onGenerate: (slot: Slot, model: string, opts?: { adjust?: string; baseImageId?: string }) => void;
   onSelect: (img: ImageDTO) => void;
   onDelete: (img: ImageDTO) => void;
 };
@@ -27,6 +29,8 @@ type Props = {
 export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect, onDelete }: Props) {
   const [adjust, setAdjust] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
+  // Model for the next fresh version — starts as the listing's model, seller can switch any time.
+  const [nextModel, setNextModel] = useState(listing.imageModel);
   const inputRef = useRef<HTMLInputElement>(null);
   const picked = pickedImage(listing.images, slot);
 
@@ -36,9 +40,7 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
     .map((img, i) => ({ img, n: i + 1 }))
     .reverse();
   const pending = inflight.filter((r) => r.slot === slot);
-  const others = listing.availableProviders.filter((p) => p !== listing.provider);
   const doneCount = versions.filter((v) => v.img.status === "done").length;
-  const busy = pending.length > 0;
   // The version being edited: the one the seller clicked "Edit" on, else the exported pick.
   const target = versions.find((v) => v.img.id === editId && v.img.status === "done") ?? versions.find((v) => v.img.id === picked?.id);
 
@@ -49,7 +51,9 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
 
   function applyChange() {
     if (!target || !adjust.trim()) return;
-    onGenerate(slot, target.img.provider, { adjust, baseImageId: target.img.id });
+    // Edit with the model that made the image; exact-zoom versions fall back to the listing's model.
+    const model = listing.models.some((m) => m.id === target.img.model) ? target.img.model : listing.imageModel;
+    onGenerate(slot, model, { adjust, baseImageId: target.img.id });
     setAdjust("");
   }
 
@@ -67,7 +71,7 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
           <div key={r.id} className="flex min-w-0 flex-col border-2 border-line bg-paper">
             <div className="busy relative flex aspect-square items-end p-3">
               <span className="bg-paper/90 px-2 py-1 text-xs font-semibold text-accent-strong">
-                {r.edit ? "Applying your change" : "Generating"} with {PROVIDER_LABEL[r.provider]}…
+                {r.edit ? "Applying your change" : "Generating"} with {modelLabel(r.model)}…
               </span>
             </div>
             <div className="px-3.5 pb-3.5 pt-3 text-[13px] text-muted">{r.adjust ? `“${r.adjust}”` : "New version"}</div>
@@ -95,7 +99,7 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
           <label htmlFor={`adjust-${slot}`} className="mb-1 block text-xs text-ink-2">
             {target ? (
               <>
-                Change <b className="text-ink">v{target.n}</b> ({PROVIDER_LABEL[target.img.provider]}) — the original stays
+                Change <b className="text-ink">v{target.n}</b> ({modelLabel(target.img.model)}) — the original stays
               </>
             ) : (
               "Change an image"
@@ -115,14 +119,17 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
         <Button variant="primary" disabled={!target || !adjust.trim()} onClick={applyChange} title="Saves the edit as a new version; the original stays">
           Apply to v{target?.n ?? "–"}
         </Button>
-        <Button disabled={busy} onClick={() => onGenerate(slot, listing.provider, { adjust })} title="Makes a fresh image from your photos">
+      </div>
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <div>
+          <label htmlFor={`model-${slot}`} className="mb-1 block text-xs text-ink-2">
+            Or make a fresh version with
+          </label>
+          <ModelSelect id={`model-${slot}`} models={listing.models} value={nextModel} onChange={setNextModel} />
+        </div>
+        <Button onClick={() => onGenerate(slot, nextModel, { adjust })} title="Makes a fresh image from your photos with the chosen model">
           <Icon name="refresh" size={13} /> New version
         </Button>
-        {others.map((p) => (
-          <Button key={p} variant="ghost" onClick={() => onGenerate(slot, p, { adjust })}>
-            Try with {PROVIDER_LABEL[p]}
-          </Button>
-        ))}
       </div>
     </section>
   );
@@ -167,9 +174,11 @@ function Version(props: {
       </div>
       <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[14px] font-extrabold">{PROVIDER_LABEL[img.provider]}</span>
-          <span className="truncate font-mono text-[11px] text-muted" title={img.model}>
-            {img.baseImageId ? "edited" : img.model}
+          <span className="truncate text-[14px] font-extrabold" title={img.model}>
+            {modelLabel(img.model)}
+          </span>
+          <span className="flex-none font-mono text-[11px] text-muted">
+            {img.baseImageId ? "edited" : PROVIDER_LABEL[img.provider]}
             {img.status === "done" && img.costUsd !== null && (
               <b className="ml-1.5 font-sans text-[12px] text-ink">{img.costUsd === 0 ? "free" : formatUsd(img.costUsd)}</b>
             )}

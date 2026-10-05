@@ -17,6 +17,8 @@ export const listings = pgTable(
     imageCount: integer("image_count").notNull(),
     /** Image model the seller chose. Null on rows created before the picker existed. */
     imageProvider: providerEnum("image_provider"),
+    /** Image model id the seller chose (see src/lib/ai/models.ts). */
+    imageModel: text("image_model"),
     /** Extra in-use image requested. */
     lifestyle: boolean("lifestyle").notNull().default(false),
     lifestyleScene: text("lifestyle_scene"),

@@ -2,19 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteImage as apiDeleteImage, fetchListing, generateImage } from "@/lib/client/api";
-import type { ProviderName, Slot } from "@/lib/listing/schema";
+import type { Slot } from "@/lib/listing/schema";
 import type { ImageDTO, ListingDTO } from "@/lib/listing/types";
 import { useToast } from "../toast";
 
-export const keyOf = (slot: Slot, provider: ProviderName) => `${slot}:${provider}`;
+export const keyOf = (slot: Slot, model: string) => `${slot}:${model}`;
 
 /** A request this tab is waiting on. Shown as a placeholder card until the image arrives. */
-export type Inflight = { id: string; slot: Slot; provider: ProviderName; adjust?: string; edit: boolean };
+export type Inflight = { id: string; slot: Slot; model: string; adjust?: string; edit: boolean };
 
-export function latestImage(images: ImageDTO[], slot: Slot, provider: ProviderName): ImageDTO | undefined {
+export function latestImage(images: ImageDTO[], slot: Slot, model: string): ImageDTO | undefined {
   let found: ImageDTO | undefined;
   for (const img of images) {
-    if (img.slot === slot && img.provider === provider && (!found || img.createdAt >= found.createdAt)) found = img;
+    if (img.slot === slot && img.model === model && (!found || img.createdAt >= found.createdAt)) found = img;
   }
   return found;
 }
@@ -46,11 +46,11 @@ export function useImageOrchestrator(initial: ListingDTO) {
   }, []);
 
   const run = useCallback(
-    (slot: Slot, provider: ProviderName, opts: { adjust?: string; baseImageId?: string } = {}) => {
-      kicked.current.add(keyOf(slot, provider));
-      const req: Inflight = { id: crypto.randomUUID(), slot, provider, adjust: opts.adjust?.trim() || undefined, edit: !!opts.baseImageId };
+    (slot: Slot, model: string, opts: { adjust?: string; baseImageId?: string } = {}) => {
+      kicked.current.add(keyOf(slot, model));
+      const req: Inflight = { id: crypto.randomUUID(), slot, model, adjust: opts.adjust?.trim() || undefined, edit: !!opts.baseImageId };
       setInflight((list) => [...list, req]);
-      generateImage(listing.id, slot, provider, opts)
+      generateImage(listing.id, slot, model, opts)
         .then((img) => {
           mergeImage(img);
           // Pick up the new AI call in the cost totals.
@@ -81,8 +81,8 @@ export function useImageOrchestrator(initial: ListingDTO) {
   useEffect(() => {
     if (listing.status !== "ready") return;
     for (const slot of listing.slots) {
-      const key = keyOf(slot, listing.provider);
-      if (!kicked.current.has(key) && !latestImage(listing.images, slot, listing.provider)) run(slot, listing.provider);
+      const key = keyOf(slot, listing.imageModel);
+      if (!kicked.current.has(key) && !latestImage(listing.images, slot, listing.imageModel)) run(slot, listing.imageModel);
     }
   }, [listing, run]);
 

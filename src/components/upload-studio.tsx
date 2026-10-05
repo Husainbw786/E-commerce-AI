@@ -4,7 +4,9 @@ import imageCompression from "browser-image-compression";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createListing, fetchQuestions, uploadPhoto } from "@/lib/client/api";
-import { MAX_SOURCE_PHOTOS, SLOT_INFO, slotsFor, type ProviderName, type SellerQuestions } from "@/lib/listing/schema";
+import { MAX_SOURCE_PHOTOS, SLOT_INFO, slotsFor, type SellerQuestions } from "@/lib/listing/schema";
+import type { ModelOptionDTO } from "@/lib/listing/types";
+import { ModelPicker } from "./model-picker";
 import { QuestionsPanel, type QuestionsState } from "./questions-panel";
 import { Button, Icon, SectionHeading, Segmented, StepsBar, inputClass } from "./ui";
 
@@ -22,15 +24,11 @@ const STAGE_TEXT: Record<Stage, string> = {
   analysing: "Writing your listing… (about 20–40 s)",
 };
 
-const PROVIDER_INFO: Record<ProviderName, { label: string; model: string }> = {
-  gemini: { label: "Gemini", model: "Nano Banana 2" },
-  openai: { label: "OpenAI", model: "GPT Image 2.5" },
-};
-const PROVIDER_STORAGE_KEY = "listora:image-provider";
+const MODEL_STORAGE_KEY = "listora:image-model";
 
-export function UploadStudio({ providers, defaultProvider }: { providers: ProviderName[]; defaultProvider: ProviderName }) {
+export function UploadStudio({ models, defaultModel, usdToInr }: { models: ModelOptionDTO[]; defaultModel: string; usdToInr: number | null }) {
   const router = useRouter();
-  const [provider, setProvider] = useState<ProviderName>(defaultProvider);
+  const [model, setModel] = useState(defaultModel);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [count, setCount] = useState<1 | 2 | 3>(3);
   const [stage, setStage] = useState<Stage>("idle");
@@ -50,17 +48,17 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
   // Remember the last model the seller picked (per browser).
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(PROVIDER_STORAGE_KEY) as ProviderName | null;
+      const saved = localStorage.getItem(MODEL_STORAGE_KEY);
       // Read after hydration on purpose: the server can't see localStorage.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved && providers.includes(saved)) setProvider(saved);
+      if (saved && models.some((m) => m.id === saved)) setModel(saved);
     } catch {}
-  }, [providers]);
+  }, [models]);
 
-  function chooseProvider(p: ProviderName) {
-    setProvider(p);
+  function chooseModel(id: string) {
+    setModel(id);
     try {
-      localStorage.setItem(PROVIDER_STORAGE_KEY, p);
+      localStorage.setItem(MODEL_STORAGE_KEY, id);
     } catch {}
   }
 
@@ -156,7 +154,7 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
       const listing = await createListing({
         sourceUrls,
         imageCount: count,
-        provider,
+        model,
         notes: form.notes.trim() || undefined,
         answers,
         lifestyle: form.lifestyle,
@@ -345,26 +343,13 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
 
             <div>
               <SectionHeading num="03" title="Image model" className="mb-4" />
-              {providers.length === 0 ? (
+              {models.length === 0 ? (
                 <p className="m-0 text-[13px] font-semibold text-accent-strong">No image model is set up. Add OPENAI_API_KEY or GEMINI_API_KEY.</p>
               ) : (
                 <>
-                  <Segmented
-                    label="Image model"
-                    value={provider}
-                    onChange={chooseProvider}
-                    options={providers.map((p) => ({
-                      value: p,
-                      label: (
-                        <span className="flex flex-col">
-                          <span>{PROVIDER_INFO[p].label}</span>
-                          <span className="text-xs font-normal opacity-70">{PROVIDER_INFO[p].model}</span>
-                        </span>
-                      ),
-                    }))}
-                  />
+                  <ModelPicker models={models} value={model} onChange={chooseModel} usdToInr={usdToInr} />
                   <p className="mt-3 text-[13px] text-muted">
-                    Only this model generates your images. Not happy with one? You can retry that image with the other model on the next screen.
+                    Only this model makes your images. On the next screen you can make extra versions of any image with any other model.
                   </p>
                 </>
               )}
@@ -416,7 +401,7 @@ export function UploadStudio({ providers, defaultProvider }: { providers: Provid
               <Button
                 variant="primary"
                 onClick={start}
-                disabled={!photos.length || busy || providers.length === 0}
+                disabled={!photos.length || busy || models.length === 0}
                 className="w-full justify-between px-[18px] py-4 text-base"
               >
                 <span>
