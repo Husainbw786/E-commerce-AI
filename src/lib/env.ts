@@ -9,7 +9,7 @@ const optional = z
 const schema = z.object({
   OPENAI_API_KEY: optional,
   GEMINI_API_KEY: optional,
-  OPENAI_TEXT_MODEL: z.string().default("gpt-6.1-sol"),
+  OPENAI_TEXT_MODEL: z.string().default("gpt-6-luna"),
   // Optional cheaper/faster model for the pre-listing questions. Falls back to OPENAI_TEXT_MODEL.
   OPENAI_QUESTIONS_MODEL: optional,
 

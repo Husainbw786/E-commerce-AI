@@ -34,6 +34,10 @@ describe("costOf", () => {
     expect(c.outputTokens).toBe(1957);
   });
 
+  it("prices gpt-6-luna", () => {
+    expect(costOf("gpt-6-luna", { input_tokens: 3000, output_tokens: 2400 }).costUsd).toBeCloseTo((3000 * 0.1 + 2400 * 0.5) / 1e6, 10);
+  });
+
   it("returns null cost for unknown models and zero for no usage", () => {
     expect(costOf("some-new-model", { input_tokens: 10, output_tokens: 5 }).costUsd).toBeNull();
     expect(costOf("gpt-6.1-sol", null).costUsd).toBe(0);

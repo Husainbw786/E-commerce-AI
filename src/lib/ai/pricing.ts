@@ -11,7 +11,9 @@ type GeminiRates = { kind: "gemini"; input: number; textOutput: number; imageOut
 type Rates = TextRates | OpenAIImageRates | GeminiRates;
 
 export const PRICES: Record<string, Rates> = {
-  // Text model (listing details + questions). https://developers.openai.com/api/docs/models/gpt-6.1-sol
+  // Text models (listing details + questions). Default: gpt-6-luna.
+  // https://developers.openai.com/api/docs/models/gpt-6-luna · .../gpt-6.1-sol
+  "gpt-6-luna": { kind: "openai-text", input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.5, longContextAt: 272_000 },
   "gpt-6.1-sol": { kind: "openai-text", input: 2, cachedInput: 0.1, cacheWrite: 2.5, output: 10, longContextAt: 272_000 },
   // OpenAI image models
   "gpt-image-2.5-sunburst": { kind: "openai-image", textInput: 5, imageInput: 8, imageOutput: 30, textOutput: 0 },
