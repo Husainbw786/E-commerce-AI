@@ -30,7 +30,9 @@ export function ImageSlot({ listing, slot, index, inflight, onGenerate, onSelect
   const [adjust, setAdjust] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   // Model for the next fresh version — starts as the listing's model, seller can switch any time.
-  const [nextModel, setNextModel] = useState(listing.imageModel);
+  const [nextModel, setNextModel] = useState(
+    listing.models.some((m) => m.id === listing.imageModel) ? listing.imageModel : (listing.models[0]?.id ?? listing.imageModel),
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const picked = pickedImage(listing.images, slot);
 

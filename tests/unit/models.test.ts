@@ -20,4 +20,17 @@ describe("image model catalog", () => {
     expect(modelLabel("zoom out (exact)")).toBe("zoom out (exact)");
     expect(findImageModel("gemini-2.5-flash-image")).toBeUndefined(); // shut down 2 Oct 2026
   });
+
+  it("offers only the newest generation, but still names retired models in history", () => {
+    expect(IMAGE_MODELS.map((m) => m.id)).toEqual([
+      "gemini-3-pro-image",
+      "gemini-3.1-flash-image",
+      "gemini-3.1-flash-lite-image",
+      "gpt-image-2.5-sunburst",
+      "gpt-image-2.5-flare",
+    ]);
+    expect(findImageModel("gpt-image-1")).toBeUndefined();
+    expect(modelLabel("gpt-image-1-mini")).toBe("GPT Image 1 Mini");
+    expect(PRICES["gpt-image-1"]).toBeDefined(); // past costs stay priced
+  });
 });

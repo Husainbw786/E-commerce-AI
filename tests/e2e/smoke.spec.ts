@@ -10,9 +10,10 @@ test("upload → questions → listing → images, edit, versions → export", a
   await page.locator('input[type="file"]').last().setInputFiles(path.join(__dirname, "fixtures/product-angle.jpg"));
   await expect(page.getByText("2 of 4")).toBeVisible();
   await page.getByRole("radio", { name: "2 images" }).click();
-  // All 10 image models are offered; pick a specific one.
+  // Only the newest models are offered; pick a specific one.
   await expect(page.getByRole("radio", { name: /Nano Banana Pro/ })).toBeVisible();
-  await expect(page.getByRole("radio", { name: /GPT Image 1 Mini/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /GPT Image 2\.5 Sunburst/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /GPT Image 1/ })).toHaveCount(0);
   await page.getByRole("radio", { name: /GPT Image 2\.5 Flare/ }).click();
   await page.getByLabel("Anything the AI should know? (optional)").fill("Sold in blue and black");
 

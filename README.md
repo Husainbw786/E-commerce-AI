@@ -3,7 +3,7 @@
 Upload 1–4 photos of a product → get 1–3 Meesho-ready images and every listing field, ready to copy.
 
 - **Listing details** — OpenAI (`gpt-6-astra`, Structured Outputs) reads the photo and fills title, description, Meesho fields, measurements and keywords. Rules come from [`docs/MEESHO_PRODUCT_LISTING_SKILL.md`](docs/MEESHO_PRODUCT_LISTING_SKILL.md).
-- **Images** — the seller picks any of 10 image models at upload (Gemini Nano Banana Pro / 2 / 2 Lite; OpenAI GPT Image 2.5 Sunburst / 2.5 Flare / 2 / 1.5 / 1 / 1 Mini / ChatGPT Image). Only that model runs; any image can get extra versions from any other model. The model list is in `src/lib/ai/models.ts`, prices in `src/lib/ai/pricing.ts`.
+- **Images** — the seller picks one of the newest image models at upload (Gemini Nano Banana Pro / 2 / 2 Lite; OpenAI GPT Image 2.5 Sunburst / 2.5 Flare). Only that model runs; any image can get extra versions from any other model. The model list is in `src/lib/ai/models.ts`, prices in `src/lib/ai/pricing.ts`.
 - **Export** — ZIP with the chosen images (1500×1500 JPG, white background) + `listing.txt`.
 
 Plan: [`docs/PLAN.md`](docs/PLAN.md) · Design: [`docs/design-listora-studio.html`](docs/design-listora-studio.html)
