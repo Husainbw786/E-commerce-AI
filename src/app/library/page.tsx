@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DeleteListingButton } from "@/components/delete-listing-button";
 import { Icon, Tag } from "@/components/ui";
 import { formatUsd } from "@/lib/ai/pricing";
 import { env } from "@/lib/env";
@@ -65,9 +66,12 @@ export default async function LibraryPage() {
                     <Tag tone={r.status === "ready" ? "accent" : "neutral"}>{r.status === "ready" ? "Ready" : r.status === "failed" ? "Failed" : "Analysing"}</Tag>
                   </td>
                   <td className="border-b border-line px-2 py-3 text-right">
-                    <Link href={`/listing/${r.id}`} className="text-[13px] font-extrabold no-underline">
-                      Open
-                    </Link>
+                    <div className="flex items-center justify-end gap-4">
+                      <Link href={`/listing/${r.id}`} className="text-[13px] font-extrabold no-underline">
+                        Open
+                      </Link>
+                      <DeleteListingButton id={r.id} title={r.title} />
+                    </div>
                   </td>
                 </tr>
               ))}
