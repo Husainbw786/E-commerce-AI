@@ -33,7 +33,7 @@ For real AI, put `OPENAI_API_KEY` and `GEMINI_API_KEY` in `.env.local` and run `
 
 Function limits: image routes use `maxDuration = 180` s, which fits Vercel Hobby (300 s max with Fluid compute).
 
-> **No login yet.** Anyone with the URL can generate (and spend API credits). Rate limits apply per IP once Upstash is connected (`DAILY_LISTING_LIMIT`, `DAILY_IMAGE_LIMIT`). Keep the URL private or add Vercel Deployment Protection until auth is added.
+> **Password.** The whole site (pages and API) sits behind one shared password, `SITE_PASSWORD` (default `amazon` — set your own in Vercel). A browser that enters it is remembered for 30 days; changing the password signs everyone out. `GET /api/health` stays public. Rate limits still apply per IP once Upstash is connected (`DAILY_LISTING_LIMIT`, `DAILY_IMAGE_LIMIT`).
 
 ## Scripts
 

@@ -1,7 +1,9 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { signIn } from "./helpers";
 
 test("upload → questions → listing → images, edit, versions → export", async ({ page }) => {
+  await signIn(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Upload a photo/ })).toBeVisible();
 
