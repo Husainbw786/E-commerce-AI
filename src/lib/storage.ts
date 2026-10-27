@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DeleteObjectsCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { put, del } from "@vercel/blob";
@@ -105,8 +105,11 @@ export async function deleteFiles(urls: string[]) {
     .filter((u) => u.startsWith(FILE_PREFIX))
     .map((u) => fileKey(u.slice(FILE_PREFIX.length)))
     .filter((k): k is string => !!k);
-  if (keys.length && storageBackend() === "s3") {
+  if (!keys.length) return;
+  const backend = storageBackend();
+  if (backend === "s3") {
     await s3().send(new DeleteObjectsCommand({ Bucket: env().S3_BUCKET, Delete: { Objects: keys.map((Key) => ({ Key })) } }));
+  } else if (backend === "local") {
+    await Promise.all(keys.map((k) => rm(path.join(LOCAL_ROOT, k), { force: true })));
   }
-  // Local dev files are left in .data — delete the folder to clean up.
 }
